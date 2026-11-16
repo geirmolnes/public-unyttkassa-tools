@@ -1,0 +1,591 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="two-col">
+    <div class="col-input">
+        <form id="draft-form" class="draft-form">
+
+            <div class="form-group">
+                <label for="urls">Kilder <span class="label-hint">— URLer, én per linje</span></label>
+                <textarea id="urls" name="urls" rows="3"
+                          placeholder="https://eksempel.no/artikkel"></textarea>
+                <div id="url-status"></div>
+            </div>
+
+            <div class="form-group">
+                <label for="files">Vedlegg <span class="label-hint">— PDF, tekst, markdown</span></label>
+                <label class="file-upload" for="files">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    <span>Velg filer</span>
+                </label>
+                <input type="file" id="files" name="files" multiple>
+                <span class="file-names" id="file-names"></span>
+            </div>
+
+            <div class="form-group">
+                <label for="instructions">Instruks <span class="label-hint">— valgfritt: vinkel, fokus, lengde</span></label>
+                <textarea id="instructions" name="instructions" rows="2"
+                          placeholder="F.eks. «Vinkle på kommunens svar, maks 300 ord»"></textarea>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn-draft">
+                    <span class="btn-label">Lag utkast</span>
+                    <svg class="btn-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                </button>
+            </div>
+        </form>
+
+        <div id="spinner" class="spinner-hidden">
+            <div class="spinner-content">
+                <div class="spinner-dot"></div>
+                <p>Skriver utkast …</p>
+            </div>
+        </div>
+
+        <div id="sources-panel" class="sources-panel"></div>
+    </div>
+
+    <div class="col-output" id="result"></div>
+</div>
+
+<script>
+// Brødtekst word-count target for this product (set server-side per mode).
+var IS_MANUS = {{ 'true' if is_manus else 'false' }};
+var WORD_MIN = IS_MANUS ? 200 : 110;
+var WORD_MAX = IS_MANUS ? 800 : 180;
+
+document.getElementById("files").addEventListener("change", function() {
+    var names = Array.from(this.files).map(function(f) { return f.name; });
+    document.getElementById("file-names").textContent = names.length ? names.join(", ") : "";
+    scheduleDraft();
+});
+
+// Re-draft when the journalist finishes editing the instruction field.
+document.getElementById("instructions").addEventListener("change", function() {
+    scheduleDraft();
+});
+
+// --- Background draft engine ---
+var bgState = "idle"; // idle | generating | ready | stopped | error
+var bgMarkdown = "";
+var bgError = "";
+var bgAbort = null;
+var bgRevealed = false;
+var bgSources = null;
+var bgWarnings = [];
+var draftTimer = null;
+var urlStatuses = {}; // url -> "pending" | "ok" | "error: ..."
+
+function escapeHtml(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function styleSourceContent(safeHtml, headline) {
+    // Mirror the draft's styling in the original panel: ensure a title (h1)
+    // and a bold lead. Promote the dash-prefixed paragraph immediately after
+    // the h1 to a subtitle (same size as title), and mark dash-prefixed
+    // question lines (journalist questions in interview format) so they render
+    // italic. Input must already be sanitized (renderMarkdown).
+    var tmp = document.createElement('div');
+    tmp.innerHTML = safeHtml;
+
+    var h1 = tmp.querySelector('h1');
+    // News-URL sources keep the title in a separate field, so the markdown body
+    // has no heading — inject it so the original shows a title like the draft.
+    if (!h1 && headline) {
+        h1 = document.createElement('h1');
+        h1.textContent = headline;
+        tmp.insertBefore(h1, tmp.firstChild);
+    }
+
+    if (h1) {
+        var next = h1.nextElementSibling;
+        if (next && next.tagName === 'P' && /^[–—-]\s/.test(next.textContent.trim())) {
+            next.classList.add('source-subtitle');
+        }
+    }
+
+    var ps = tmp.querySelectorAll('p');
+    var leadMarked = false;
+    for (var i = 0; i < ps.length; i++) {
+        var p = ps[i];
+        if (p.classList.contains('source-subtitle')) continue;
+        var txt = p.textContent.trim();
+        if (/^[–—-]\s.+\?$/.test(txt)) {
+            p.classList.add('source-question');
+            continue;
+        }
+        // First real paragraph is the lead — bold it to mirror the draft ingress.
+        if (!leadMarked) {
+            p.classList.add('source-lead');
+            leadMarked = true;
+        }
+    }
+
+    return tmp.innerHTML;
+}
+
+function renderSourcesPanel() {
+    var panel = document.getElementById("sources-panel");
+    if (!panel) return;
+    if (!bgSources || !bgSources.length) {
+        panel.innerHTML = '';
+        return;
+    }
+    var html = '';
+    for (var i = 0; i < bgSources.length; i++) {
+        var s = bgSources[i];
+        var label = bgSources.length > 1 ? 'KILDE ' + (i + 1) : 'ORIGINALVERSJON';
+        var metaParts = [];
+        if (s.publication) metaParts.push(escapeHtml(s.publication));
+        if (s.publication_date) metaParts.push(escapeHtml(s.publication_date));
+        if (s.byline) metaParts.push(escapeHtml(s.byline));
+        var meta = metaParts.join(" · ");
+
+        html += '<div class="article-wrapper">';
+        html += '<div class="article-toolbar"><span class="article-toolbar-label">' + label + '</span></div>';
+        html += '<article class="article-output">';
+        if (meta) html += '<div class="source-meta-header">' + meta + '</div>';
+        html += styleSourceContent(renderMarkdown(s.markdown), s.headline);
+        html += '</article></div>';
+    }
+    panel.innerHTML = html;
+}
+
+function toggleSourcesView(btn) {
+    var twoCol = document.querySelector(".two-col");
+    if (!twoCol) return;
+    if (twoCol.classList.contains("compare")) {
+        twoCol.classList.remove("compare");
+        if (btn) btn.textContent = "Vis originalversjon";
+    } else {
+        renderSourcesPanel();
+        twoCol.classList.add("compare");
+        if (btn) btn.textContent = "Skjul originalversjon";
+    }
+}
+
+function enableSourcesToggle() {
+    var btn = document.querySelector(".btn-toggle-sources");
+    if (btn) btn.disabled = false;
+}
+
+var WRAPPER_START =
+    '<div class="article-wrapper">' +
+        '<div class="article-toolbar">' +
+            '<span class="article-toolbar-label">UTKAST</span>' +
+            '<div class="article-toolbar-actions">' +
+                '<span class="wordcount" id="wordcount"></span>' +
+                '<button class="btn-stop" style="display:none" onclick="stopDraft(this)">Stopp</button>' +
+                '<button class="btn-toggle-sources" disabled onclick="toggleSourcesView(this)">Vis originalversjon</button>' +
+                '<button class="btn-copy" disabled onclick="copyArticle(this)">' +
+                    '<svg class="icon-copy" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>' +
+                    '<svg class="icon-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><polyline points="20 6 9 17 4 12"/></svg>' +
+                    '<span class="copy-label">Kopier</span>' +
+                '</button>' +
+            '</div>' +
+        '</div>' +
+        '<article class="article-output" id="article-output">';
+var SKELETON = '<div class="skeleton"><div class="skel-line skel-h"></div><div class="skel-line skel-full"></div><div class="skel-line skel-full"></div><div class="skel-line skel-short"></div></div>';
+var WRAPPER_END = '</article></div>';
+
+function scheduleDraft() {
+    clearTimeout(draftTimer);
+    draftTimer = setTimeout(function() { runDraft(false); }, 600);
+}
+
+function extractUrls(text) {
+    return text.split("\n").map(function(l) { return l.trim(); })
+        .filter(function(l) { return l.match(/^https?:\/\//i); });
+}
+
+function urlsReady() {
+    // Auto-draft only when every URL in the textarea has parsed ok — avoids
+    // burning LLM calls on half-typed URLs or sources that failed to parse.
+    var urls = extractUrls(document.getElementById("urls").value);
+    for (var i = 0; i < urls.length; i++) {
+        if (urlStatuses[urls[i]] !== "ok") return false;
+    }
+    return true;
+}
+
+function bodyWordCount(md) {
+    // Brødtekst = everything except title/headings and the ingress (the
+    // first non-heading block). Mirrors the 110–180 / 200–800 word rules.
+    var blocks = md.split(/\n\s*\n/).filter(function(b) { return b.trim().length; });
+    var body = [];
+    var ingressSkipped = false;
+    for (var i = 0; i < blocks.length; i++) {
+        var b = blocks[i].trim();
+        if (/^#/.test(b)) continue;
+        if (!ingressSkipped) { ingressSkipped = true; continue; }
+        body.push(b);
+    }
+    var text = body.join(" ").replace(/[#*_>`«»]/g, " ");
+    return text.split(/\s+/).filter(Boolean).length;
+}
+
+function updateWordCount() {
+    var el = document.getElementById("wordcount");
+    if (!el) return;
+    if (!bgMarkdown) { el.textContent = ""; return; }
+    var n = bodyWordCount(bgMarkdown);
+    el.textContent = n + " ord";
+    el.classList.toggle("wordcount-out", n < WORD_MIN || n > WORD_MAX);
+    el.title = "Mål: " + WORD_MIN + "–" + WORD_MAX + " ord brødtekst";
+}
+
+function setStopVisible(visible) {
+    var btn = document.querySelector(".btn-stop");
+    if (btn) btn.style.display = visible ? "" : "none";
+}
+
+function renderWarnings() {
+    if (!bgWarnings.length) return;
+    var wrapper = document.querySelector("#result .article-wrapper");
+    if (!wrapper) return;
+    var wc = wrapper.querySelector(".quote-warnings");
+    if (!wc) { wc = document.createElement("div"); wc.className = "quote-warnings"; wrapper.appendChild(wc); }
+    wc.innerHTML = "";
+    for (var i = 0; i < bgWarnings.length; i++) {
+        var wd = document.createElement("div");
+        wd.className = "quote-warning";
+        wd.textContent = bgWarnings[i];
+        wc.appendChild(wd);
+    }
+}
+
+function showArticleArea() {
+    document.getElementById("result").innerHTML = WRAPPER_START + SKELETON + WRAPPER_END;
+    document.getElementById("spinner").classList.remove("spinner-hidden");
+    setStopVisible(bgState === "generating");
+    if (bgSources) enableSourcesToggle();
+    renderWarnings();
+}
+
+function renderArticle() {
+    document.getElementById("result").innerHTML = WRAPPER_START + WRAPPER_END;
+    var el = document.getElementById("article-output");
+    el.dataset.markdown = bgMarkdown;
+    el.innerHTML = renderMarkdown(bgMarkdown);
+    document.querySelector(".btn-copy").disabled = false;
+    document.getElementById("spinner").classList.add("spinner-hidden");
+    setStopVisible(false);
+    if (bgSources) enableSourcesToggle();
+    renderWarnings();
+    updateWordCount();
+    bgRevealed = true;
+}
+
+function errorBox(msg) {
+    var box = document.createElement("div");
+    box.className = "error-box";
+    var p = document.createElement("p");
+    p.textContent = msg;
+    box.appendChild(p);
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "btn-retry";
+    btn.textContent = "Prøv igjen";
+    btn.addEventListener("click", function() {
+        runDraft(true);
+        showArticleArea();
+        bgRevealed = true;
+    });
+    box.appendChild(btn);
+    return box;
+}
+
+function renderError(msg) {
+    var result = document.getElementById("result");
+    if (bgMarkdown) {
+        // Keep the partial draft; surface the error underneath it.
+        renderArticle();
+    } else {
+        result.innerHTML = "";
+    }
+    result.appendChild(errorBox(msg));
+    document.getElementById("spinner").classList.add("spinner-hidden");
+    setStopVisible(false);
+    bgRevealed = true;
+}
+
+function stopDraft(btn) {
+    if (bgAbort) { bgAbort.abort(); bgAbort = null; }
+    bgState = bgMarkdown ? "stopped" : "idle";
+    document.getElementById("spinner").classList.add("spinner-hidden");
+    setStopVisible(false);
+    if (bgRevealed && bgMarkdown) {
+        var el = document.getElementById("article-output");
+        if (el) { el.dataset.markdown = bgMarkdown; el.innerHTML = renderMarkdown(bgMarkdown); }
+        var cb = document.querySelector(".btn-copy"); if (cb) cb.disabled = false;
+        updateWordCount();
+    }
+}
+
+function runDraft(force) {
+    var form = document.getElementById("draft-form");
+    var fd = new FormData(form);
+    var hasUrls = (fd.get("urls") || "").trim().length > 0;
+    var hasFiles = Array.from(fd.getAll("files")).some(function(f) { return f.size > 0; });
+    if (!hasUrls && !hasFiles) {
+        bgState = "idle";
+        return;
+    }
+    if (!force && hasUrls && !urlsReady()) {
+        // Pending/failed URLs: wait — parse completion re-schedules.
+        return;
+    }
+
+    if (bgAbort) { bgAbort.abort(); bgAbort = null; }
+
+    bgState = "generating";
+    bgMarkdown = "";
+    bgError = "";
+    bgSources = null;
+    bgWarnings = [];
+    var twoCol = document.querySelector(".two-col");
+    if (twoCol) twoCol.classList.remove("compare");
+    if (bgRevealed) showArticleArea();
+    bgAbort = new AbortController();
+
+    fetch("draft-stream", { method: "POST", body: fd, signal: bgAbort.signal })
+    .then(function(resp) {
+        var reader = resp.body.getReader();
+        var decoder = new TextDecoder();
+        var partial = "";
+
+        function handleEvent(eventType, data) {
+            // All payloads except the base64 sources blob (and empty done)
+            // arrive JSON-encoded — decode once here.
+            if (eventType !== "sources" && eventType !== "done" && data) {
+                try { data = JSON.parse(data); } catch (e) { /* keep raw */ }
+            }
+            if (eventType === "profile") {
+                console.log("[kladd profile]", data);
+                return false;
+            }
+            if (eventType === "done") {
+                bgState = "ready";
+                if (bgRevealed) {
+                    var el = document.getElementById("article-output");
+                    if (el) { el.dataset.markdown = bgMarkdown; el.innerHTML = renderMarkdown(bgMarkdown); }
+                    var cb = document.querySelector(".btn-copy"); if (cb) cb.disabled = false;
+                    document.getElementById("spinner").classList.add("spinner-hidden");
+                    setStopVisible(false);
+                    updateWordCount();
+                }
+                return true;
+            }
+            if (eventType === "error") {
+                bgError = data;
+                bgState = "error";
+                if (bgRevealed) renderError(bgError);
+                return true;
+            }
+            if (eventType === "status") {
+                if (bgRevealed) {
+                    var sp = document.querySelector("#spinner p");
+                    if (sp) sp.textContent = data;
+                }
+                return false;
+            }
+            if (eventType === "sources") {
+                try {
+                    var jsonText = decodeURIComponent(escape(atob(data)));
+                    bgSources = JSON.parse(jsonText);
+                    enableSourcesToggle();
+                    if (document.querySelector(".two-col.compare")) renderSourcesPanel();
+                } catch (e) {
+                    console.error("[kladd] failed to decode sources", e);
+                }
+                return false;
+            }
+            if (eventType === "article") {
+                bgMarkdown = data;
+                if (bgRevealed) {
+                    var el = document.getElementById("article-output");
+                    if (el) { el.dataset.markdown = bgMarkdown; el.innerHTML = renderMarkdown(bgMarkdown); }
+                    updateWordCount();
+                }
+                return false;
+            }
+            if (eventType === "warning") {
+                bgWarnings.push(data);
+                if (bgRevealed) renderWarnings();
+                return false;
+            }
+            if (eventType === null) {
+                // Default event = streaming markdown chunk (JSON-encoded string)
+                bgMarkdown += data;
+                if (bgRevealed) {
+                    var skel = document.querySelector(".skeleton"); if (skel) skel.remove();
+                    var el = document.getElementById("article-output");
+                    if (el) el.innerHTML = renderMarkdown(bgMarkdown);
+                    updateWordCount();
+                }
+                return false;
+            }
+            return false;
+        }
+
+        function pump() {
+            return reader.read().then(function(read) {
+                if (read.done) return;
+                partial += decoder.decode(read.value, { stream: true });
+                // SSE events are separated by a blank line. Keep the trailing
+                // incomplete event in `partial` so long data: lines (e.g. the
+                // base64 sources payload) survive being split across chunks.
+                var events = partial.split("\n\n");
+                partial = events.pop();
+
+                for (var i = 0; i < events.length; i++) {
+                    var block = events[i];
+                    if (!block) continue;
+                    var eventType = null;
+                    var dataLines = [];
+                    var blockLines = block.split("\n");
+                    for (var j = 0; j < blockLines.length; j++) {
+                        var bl = blockLines[j];
+                        if (bl.startsWith("event: ")) {
+                            eventType = bl.substring(7);
+                        } else if (bl.startsWith("data: ")) {
+                            dataLines.push(bl.substring(6));
+                        } else if (bl.startsWith("data:")) {
+                            dataLines.push(bl.substring(5));
+                        }
+                    }
+                    var data = dataLines.join("\n");
+                    if (handleEvent(eventType, data)) return;
+                }
+                return pump();
+            });
+        }
+        return pump();
+    })
+    .catch(function(err) {
+        if (err.name === "AbortError") return;
+        bgState = "error";
+        bgError = err.message;
+        if (bgRevealed) renderError(bgError);
+    });
+}
+
+// Button click — reveal the draft
+document.getElementById("draft-form").addEventListener("submit", function(e) {
+    e.preventDefault();
+    if (bgState === "ready" || bgState === "stopped") {
+        renderArticle();
+    } else if (bgState === "generating") {
+        showArticleArea();
+        bgRevealed = true;
+        if (bgMarkdown) {
+            var skel = document.querySelector(".skeleton"); if (skel) skel.remove();
+            var el = document.getElementById("article-output");
+            if (el) el.innerHTML = renderMarkdown(bgMarkdown);
+            updateWordCount();
+        }
+    } else if (bgState === "error") {
+        renderError(bgError);
+    } else {
+        // No sources yet — kick off manually
+        runDraft(true);
+        showArticleArea();
+        bgRevealed = true;
+    }
+});
+
+// --- Eager URL parsing ---
+(function() {
+    var urlInput = document.getElementById("urls");
+    var statusDiv = document.getElementById("url-status");
+    var debounceTimer = null;
+
+    function renderStatus() {
+        var html = "";
+        var urls = Object.keys(urlStatuses);
+        for (var i = 0; i < urls.length; i++) {
+            var url = urls[i];
+            var st = urlStatuses[url];
+            var short = url.replace(/^https?:\/\//, "").substring(0, 40);
+            if (short.length < url.replace(/^https?:\/\//, "").length) short += "…";
+            short = escapeHtml(short);
+            if (st === "pending") {
+                html += '<span class="url-indicator url-pending"><span class="url-spinner-dot"></span> ' + short + '</span>';
+            } else if (st === "ok") {
+                html += '<span class="url-indicator url-ok">✓ ' + short + '</span>';
+            } else {
+                var reason = st.indexOf("error: ") === 0 ? escapeHtml(st.slice(7)) : "";
+                html += '<span class="url-indicator url-err">✗ ' + short + (reason ? ' – ' + reason : '') + '</span>';
+            }
+        }
+        statusDiv.innerHTML = html;
+    }
+
+    function parseNewUrls() {
+        var urls = extractUrls(urlInput.value);
+        var newUrls = urls.filter(function(u) { return !(u in urlStatuses); });
+        if (!newUrls.length) return;
+
+        var urlSet = {};
+        for (var i = 0; i < urls.length; i++) urlSet[urls[i]] = true;
+        var keys = Object.keys(urlStatuses);
+        for (var i = 0; i < keys.length; i++) {
+            if (!urlSet[keys[i]]) delete urlStatuses[keys[i]];
+        }
+
+        for (var i = 0; i < newUrls.length; i++) urlStatuses[newUrls[i]] = "pending";
+        renderStatus();
+
+        fetch("parse-urls", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({urls: newUrls})
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var results = data.results || {};
+            var keys = Object.keys(results);
+            for (var i = 0; i < keys.length; i++) {
+                urlStatuses[keys[i]] = results[keys[i]];
+            }
+            renderStatus();
+            scheduleDraft();
+        })
+        .catch(function() {
+            for (var i = 0; i < newUrls.length; i++) {
+                urlStatuses[newUrls[i]] = "error: nettverksfeil";
+            }
+            renderStatus();
+        });
+    }
+
+    // Handed over from another tool — radar's «Lag sitatsak» links straight in
+    // with ?url=. Parsing starts on arrival, so the draft is usually running by
+    // the time the tab is read.
+    var handed = new URLSearchParams(location.search).getAll("url")
+        .map(function(u) { return u.trim(); })
+        .filter(function(u) { return /^https?:\/\//i.test(u); });
+    if (handed.length) {
+        urlInput.value = handed.join("\n");
+        parseNewUrls();
+    }
+
+    urlInput.addEventListener("input", function() {
+        var currentUrls = extractUrls(urlInput.value);
+        var urlSet = {};
+        for (var i = 0; i < currentUrls.length; i++) urlSet[currentUrls[i]] = true;
+        var keys = Object.keys(urlStatuses);
+        for (var i = 0; i < keys.length; i++) {
+            if (!urlSet[keys[i]]) delete urlStatuses[keys[i]];
+        }
+        renderStatus();
+
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(parseNewUrls, 500);
+        scheduleDraft();
+    });
+})();
+</script>
+{% endblock %}

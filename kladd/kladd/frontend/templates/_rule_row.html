@@ -1,0 +1,6 @@
+<li>
+    <span class="rule-text">{{ r.text }}</span>
+    <form method="post" action="/rules/{{ r.id }}/delete">
+        <button type="submit" class="rule-delete" aria-label="Slett regel">Slett</button>
+    </form>
+</li>

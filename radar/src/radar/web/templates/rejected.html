@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Frafiltrert · Utdanningsradar{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <h1>Frafiltrert</h1>
+  <p class="lede">
+    Alt radaren kastet de siste {{ days }} dagene, og hvorfor. Feeden viser bare det som slapp
+    gjennom — så uten denne siden er det ingen måte å oppdage at en kilde har sluttet å dukke
+    opp, eller at ordfilteret spiser noe det ikke burde.
+  </p>
+  <nav class="range-switch" aria-label="Tidsrom">
+    {% for d in [3, 7, 14, 30] %}
+      <a href="/frafiltrert?dager={{ d }}" class="{% if days == d %}on{% endif %}"
+         {% if days == d %}aria-current="true"{% endif %}>{{ d }} dager</a>
+    {% endfor %}
+  </nav>
+</div>
+
+<div class="board">
+  <div class="tile"><span class="v">{{ counts.beholdt }}</span><span class="l">beholdt</span></div>
+  <div class="tile"><span class="v">{{ counts.modell }}</span><span class="l">avvist av modellen</span></div>
+  <div class="tile"><span class="v">{{ counts.ordfilter }}</span><span class="l">stoppet av ordfilteret</span></div>
+  {% set tot = counts.beholdt + counts.modell + counts.ordfilter %}
+  <div class="tile"><span class="v">{{ ((counts.beholdt / tot * 100)|round|int) if tot else 0 }}%</span><span class="l">slipper gjennom</span></div>
+</div>
+
+{% if bands %}
+<div class="side-card wide">
+  <h4>Traff scoren?</h4>
+  <p class="note">
+    Hvor ofte en sak i hvert scoreintervall endte som noe vi faktisk siterte. Et intervall vi
+    aldri siterer, er et intervall som scores for høyt. Tallene er kumulative for hele basen.
+  </p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Prompt</th><th>Score</th><th>Saker</th><th>Sitert</th><th>Dekket</th><th>Sitert-andel</th></tr></thead>
+      <tbody>
+        {% for b in bands %}
+          <tr>
+            <td class="mono">{{ b['prompt_version'] or '–' }}</td>
+            <td class="mono">{{ b['band'] }}–{{ b['band'] + 19 }}</td>
+            <td class="mono">{{ b['n'] }}</td>
+            <td class="mono">{{ b['sitert'] or 0 }}</td>
+            <td class="mono">{{ b['dekket'] or 0 }}</td>
+            <td class="mono">{{ (((b['sitert'] or 0) / b['n'] * 100)|round(1)) if b['n'] else 0 }}%</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<div class="rejected-list">
+  {% if not items %}
+    <div class="empty-state">
+      <h3>Ingenting frafiltrert</h3>
+      <p>Ingen artikler er avvist i dette tidsrommet.</p>
+    </div>
+  {% endif %}
+  {% for it in items %}
+    <article class="rej-card gate-{{ it.gate }}">
+      <div class="rej-gate">{{ 'Ordfilter' if it.gate == 'ordfilter' else 'Modell' }}</div>
+      <div class="rej-body">
+        <div class="head">
+          <span class="src">{{ it.source|source_label }}</span>
+          <span class="spacer"></span>
+          <span class="clock">{{ it.published_day|datestamp }} {{ it.published_at|time }}</span>
+        </div>
+        <h3><a href="{{ it.link }}" target="_blank" rel="noopener">{{ it.title }}</a></h3>
+        {% if it.summary %}<p class="excerpt">{{ it.summary|truncate_chars(180) }}</p>{% endif %}
+        <p class="why">
+          {% if it.gate == 'ordfilter' %}
+            {{ it.prefilter_reason or 'ingen utdanningsord' }}{% if it.prefilter_terms %} —
+            fant {{ it.prefilter_terms[:6]|join(', ') }}{% endif %}
+          {% else %}
+            {{ it.rationale or 'ingen begrunnelse' }}{% if it.score is not none %} · score {{ it.score }}{% endif %}
+            {%- if it.error %} · feil: {{ it.error|truncate_chars(80) }}{% endif %}
+          {% endif %}
+        </p>
+      </div>
+    </article>
+  {% endfor %}
+</div>
+{% endblock %}

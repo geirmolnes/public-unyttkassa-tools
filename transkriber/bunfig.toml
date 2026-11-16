@@ -1,0 +1,4 @@
+# Supply-chain cooldown: install only releases at least 7 days old (value in seconds). Set in the
+# repo, not only in ~/.bunfig.toml, so every machine and CI resolve the same way.
+[install]
+minimumReleaseAge = 604800

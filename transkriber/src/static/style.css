@@ -1,0 +1,1408 @@
+/* Unytt Transkriber — "paper + ink, burnt-orange accent".
+   Palette, fonts and idioms matched to the stortinget app so the two tools
+   read as siblings: white paper surfaces, a warm off-white sidebar rail,
+   Source Serif 4 headings, JetBrains Mono for timestamps/labels, tight radii
+   and a full system/light/dark theme. */
+
+:root {
+    /* paper = backgrounds (light → dark), ink = text (dark → light) */
+    --paper: #ffffff;
+    --paper-2: #f6f5f2;
+    --paper-3: #eceae4;
+    --ink: #1a1915;
+    --ink-2: #333230;
+    --ink-3: #605d58;
+    --ink-4: #8f8c85;
+    --rule: #e5e3dd;
+    --rule-2: #cfccc4;
+    --accent: #d94f1e;
+    --accent-2: #e8641e;
+    --accent-rgb: 217, 79, 30;
+
+    /* semantic tints — status tags, errors, etc. */
+    --amber: #9a6500;
+    --amber-bg: #fff1cf;
+    --amber-border: #d4b66b;
+    --rose: #b23a3a;
+    --rose-bg: #fadede;
+    --rose-border: #c48e8e;
+    --ok: #2d6b3c;
+    --ok-bg: #deefd8;
+    --ok-border: #8ea97f;
+
+    /* Legacy aliases: existing rules still say var(--bg)/var(--text)/etc.
+       Pointing them at the new tokens means dark mode (which overrides only
+       the new tokens below) flows through automatically — var() resolves at
+       use time, so these follow whatever --paper/--ink are on <html>. */
+    --bg: var(--paper);
+    --bg-elev: var(--paper);
+    --bg-sunk: var(--paper-2);
+    --border: var(--rule);
+    --border-strong: var(--rule-2);
+    --text: var(--ink);
+    --muted: var(--ink-3);
+    --accent-hover: var(--accent-2);
+
+    /* Very subtle, stortinget-style shadows — a hairline plus a soft drop. */
+    --shadow-sm: 0 1px 0 rgba(26, 25, 21, 0.03);
+    --shadow-md: 0 1px 0 rgba(26, 25, 21, 0.04),
+                 0 6px 20px -12px rgba(26, 25, 21, 0.18);
+    --shadow-lg: 0 1px 0 rgba(26, 25, 21, 0.05),
+                 0 12px 32px -12px rgba(26, 25, 21, 0.22);
+
+    --font-serif: "Source Serif 4", Georgia, serif;
+    --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+    --radius: 6px;
+    --radius-sm: 4px;
+}
+
+[data-theme="dark"] {
+    --paper: #15140f;
+    --paper-2: #1d1b15;
+    --paper-3: #28251d;
+    --ink: #efece3;
+    --ink-2: #c9c5bb;
+    --ink-3: #95918a;
+    --ink-4: #6e6a65;
+    --rule: #2a2820;
+    --rule-2: #3a372f;
+    --accent: #f36a3d;
+    --accent-2: #ff7b52;
+    --accent-rgb: 243, 106, 61;
+    --amber: #e8b660;
+    --amber-bg: rgba(232, 182, 96, 0.12);
+    --amber-border: #6e5826;
+    --rose: #e68181;
+    --rose-bg: rgba(230, 129, 129, 0.12);
+    --rose-border: #6a3a3a;
+    --ok: #8fc097;
+    --ok-bg: rgba(143, 192, 151, 0.12);
+    --ok-border: #3f5c45;
+    --shadow-sm: 0 1px 0 rgba(0, 0, 0, 0.25);
+    --shadow-md: 0 1px 0 rgba(0, 0, 0, 0.3),
+                 0 8px 24px -14px rgba(0, 0, 0, 0.55);
+    --shadow-lg: 0 1px 0 rgba(0, 0, 0, 0.3),
+                 0 12px 32px -14px rgba(0, 0, 0, 0.6);
+    color-scheme: dark;
+}
+
+/* No explicit preference → follow the OS. Same tokens as [data-theme="dark"]
+   but gated on the media query, and skipped when the user has pinned a theme. */
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]):not([data-theme="dark"]) {
+        --paper: #15140f;
+        --paper-2: #1d1b15;
+        --paper-3: #28251d;
+        --ink: #efece3;
+        --ink-2: #c9c5bb;
+        --ink-3: #95918a;
+        --ink-4: #6e6a65;
+        --rule: #2a2820;
+        --rule-2: #3a372f;
+        --accent: #f36a3d;
+        --accent-2: #ff7b52;
+        --accent-rgb: 243, 106, 61;
+        --amber: #e8b660;
+        --amber-bg: rgba(232, 182, 96, 0.12);
+        --amber-border: #6e5826;
+        --rose: #e68181;
+        --rose-bg: rgba(230, 129, 129, 0.12);
+        --rose-border: #6a3a3a;
+        --ok: #8fc097;
+        --ok-bg: rgba(143, 192, 151, 0.12);
+        --ok-border: #3f5c45;
+        --shadow-sm: 0 1px 0 rgba(0, 0, 0, 0.25);
+        --shadow-md: 0 1px 0 rgba(0, 0, 0, 0.3),
+                     0 8px 24px -14px rgba(0, 0, 0, 0.55);
+        --shadow-lg: 0 1px 0 rgba(0, 0, 0, 0.3),
+                     0 12px 32px -14px rgba(0, 0, 0, 0.6);
+        color-scheme: dark;
+    }
+}
+
+* { box-sizing: border-box; }
+
+html {
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-feature-settings: "cv11", "ss01";
+}
+
+@supports (font-variation-settings: normal) {
+    html { font-family: "Inter var", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+}
+
+body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-size: 15px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* Utility classes mirroring the stortinget app's typographic primitives. */
+.serif { font-family: var(--font-serif); font-feature-settings: "onum"; }
+.mono  { font-family: var(--font-mono); font-feature-settings: "tnum"; }
+
+.hidden { display: none !important; }
+
+/* Subtle entrance animation so the page doesn't snap in on load. */
+.layout { animation: fadeInUp 260ms ease-out both; }
+@keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ------------------------------------------------------------ */
+/* Layout                                                        */
+/* ------------------------------------------------------------ */
+
+.layout {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    min-height: 100vh;
+}
+
+.main {
+    padding: 3rem 3rem 5rem;
+    max-width: 920px;
+    width: 100%;
+}
+
+.page-header {
+    margin-bottom: 2rem;
+}
+
+.page-header h1 {
+    margin: 0 0 0.4rem;
+    font-family: var(--font-serif);
+    font-weight: 600;
+    font-size: 2rem;
+    line-height: 1.1;
+    letter-spacing: -0.01em;
+    font-variation-settings: "opsz" 42;
+}
+
+.tagline {
+    margin: 0;
+    color: var(--ink-3);
+    font-size: 0.925rem;
+}
+
+/* ------------------------------------------------------------ */
+/* Sidebar (light warm-paper rail)                               */
+/* ------------------------------------------------------------ */
+
+.sidebar {
+    background: var(--paper-2);
+    color: var(--ink);
+    display: flex;
+    flex-direction: column;
+    padding: 1.5rem 1rem;
+    gap: 1.25rem;
+    position: sticky;
+    top: 0;
+    max-height: 100vh;
+    overflow-y: auto;
+    border-right: 1px solid var(--rule);
+    transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    color: var(--ink);
+    text-decoration: none;
+    padding: 0.25rem 0.5rem;
+    letter-spacing: -0.015em;
+}
+
+.brand-name {
+    font-family: var(--font-serif);
+    font-weight: 600;
+    font-size: 1.5rem;
+    line-height: 1;
+    letter-spacing: -0.02em;
+    font-variation-settings: "opsz" 32;
+}
+
+.history {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    margin-top: 0.5rem;
+}
+
+.history-heading {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--ink-4);
+    font-variant: all-small-caps;
+    letter-spacing: 0.1em;
+    margin: 0 0.5rem 0.5rem;
+}
+
+.history-empty {
+    color: var(--ink-3);
+    font-size: 0.875rem;
+    padding: 0 0.5rem;
+    margin: 0;
+}
+
+.history-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.history-item {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    padding: 0.6rem 0.75rem 0.6rem 0.9rem;
+    border-radius: var(--radius-sm);
+    color: var(--ink-2);
+    text-decoration: none;
+    transition: background 140ms ease, color 140ms ease;
+    min-width: 0;
+}
+
+.history-item:hover { background: var(--paper-3); }
+.history-item.active { background: var(--paper-3); }
+.history-item.active::before {
+    content: "";
+    position: absolute;
+    left: -1rem;
+    top: 0.65rem;
+    bottom: 0.65rem;
+    width: 3px;
+    background: var(--accent);
+    border-radius: 0 2px 2px 0;
+}
+
+.history-title {
+    font-size: 0.875rem;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    letter-spacing: -0.005em;
+    color: var(--ink-2);
+}
+.history-item.active .history-title { color: var(--ink); }
+
+.history-meta {
+    display: flex;
+    gap: 0.6rem;
+    align-items: center;
+    font-size: 0.7rem;
+    color: var(--ink-4);
+    font-family: var(--font-mono);
+    font-feature-settings: "tnum";
+}
+
+/* Language tag in the sidebar — minimal mono caps, no chip. */
+.tag {
+    display: inline-block;
+    font-size: 0.65rem;
+    font-weight: 500;
+    font-family: var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--ink-4);
+}
+
+/* Status tags get the semantic chip treatment (amber = working, rose = error). */
+.tag-running,
+.tag-error {
+    padding: 1px 6px;
+    border-radius: var(--radius-sm);
+    border: 1px solid transparent;
+    letter-spacing: 0.04em;
+    text-transform: none;
+    font-weight: 600;
+}
+.tag-running { background: var(--amber-bg); color: var(--amber); border-color: var(--amber-border); }
+.tag-error   { background: var(--rose-bg); color: var(--rose); border-color: var(--rose-border); }
+
+.sidebar-footer {
+    border-top: 1px solid var(--rule);
+    padding: 0.75rem 0.5rem 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.user-email {
+    color: var(--ink-4);
+    font-size: 0.75rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.btn-link {
+    background: none;
+    border: none;
+    color: var(--ink-3);
+    padding: 0;
+    text-align: left;
+    cursor: pointer;
+    font-size: 0.8rem;
+    font-family: inherit;
+}
+
+.btn-link:hover { color: var(--ink); }
+
+.logout-form { margin: 0; }
+
+/* ------------------------------------------------------------ */
+/* Theme toggle (system / light / dark)                          */
+/* ------------------------------------------------------------ */
+
+.theme-toggle {
+    display: inline-flex;
+    gap: 2px;
+    padding: 2px;
+    border: 1px solid var(--rule-2);
+    border-radius: 999px;
+    background: var(--paper);
+    align-self: flex-start;
+}
+
+.theme-toggle-btn {
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    border-radius: 999px;
+    color: var(--ink-3);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 120ms ease, color 120ms ease;
+}
+.theme-toggle-btn:hover { color: var(--ink); }
+.theme-toggle-btn[aria-pressed="true"] {
+    background: var(--ink);
+    color: var(--paper);
+}
+
+/* ------------------------------------------------------------ */
+/* Buttons                                                       */
+/* ------------------------------------------------------------ */
+
+.btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    padding: 0.5rem 0.85rem;
+    font-family: inherit;
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.btn-block { width: 100%; justify-content: center; }
+
+/* Primary / accent buttons — burnt-orange fill. */
+.btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+.btn-primary:hover { background: var(--accent-2); border-color: var(--accent-2); }
+
+.btn-accent { background: var(--accent); color: #fff; border-color: var(--accent); }
+.btn-accent:hover { background: var(--accent-2); border-color: var(--accent-2); }
+
+.btn-ghost {
+    background: transparent;
+    color: var(--ink-2);
+    border-color: var(--rule-2);
+}
+.btn-ghost:hover { background: var(--paper-2); color: var(--ink); }
+
+.btn-danger:hover { color: var(--rose); border-color: var(--rose-border); background: var(--rose-bg); }
+
+/* Subtle "post-processing" pill shown on the transcript view while question
+   detection / filler cleanup are still running in the background. The poll
+   in transcript.js patches the transcript in place and removes this element
+   when both passes finish. */
+.post-processing {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0.75rem;
+    background: var(--paper-2);
+    border: 1px solid var(--rule);
+    border-radius: var(--radius-sm);
+    color: var(--ink-3);
+    font-size: 0.8125rem;
+}
+.spinner {
+    width: 0.875rem;
+    height: 0.875rem;
+    border: 2px solid var(--rule-2);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 700ms linear infinite;
+    flex-shrink: 0;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Segmented two-button toggle used for Renset/Rå on the transcript view. */
+.toggle-group {
+    display: inline-flex;
+    border: 1px solid var(--rule-2);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+}
+.toggle-group.hidden { display: none; }
+.toggle-group .toggle-btn {
+    border: none;
+    border-radius: 0;
+    padding: 0.45rem 0.75rem;
+    font-size: 0.8125rem;
+}
+.toggle-group .toggle-btn + .toggle-btn { border-left: 1px solid var(--rule-2); }
+/* Active segment = inverted ink pill, the stortinget active-nav idiom. */
+.toggle-group .toggle-btn.active {
+    background: var(--ink);
+    color: var(--paper);
+}
+.toggle-group .toggle-btn.active:hover {
+    background: var(--ink);
+    color: var(--paper);
+}
+
+/* ------------------------------------------------------------ */
+/* Upload                                                        */
+/* ------------------------------------------------------------ */
+
+.dropzone {
+    display: block;
+    border: 1.5px dashed var(--rule-2);
+    border-radius: var(--radius);
+    background: var(--paper);
+    padding: 4rem 1.5rem;
+    text-align: center;
+    cursor: pointer;
+    box-shadow: var(--shadow-sm);
+    transition:
+        border-color 160ms ease,
+        background 160ms ease,
+        box-shadow 160ms ease,
+        transform 160ms ease;
+}
+
+.dropzone:hover,
+.dropzone.drag-over {
+    border-color: var(--accent);
+    background: rgba(var(--accent-rgb), 0.04);
+    box-shadow: var(--shadow-md);
+    transform: translateY(-1px);
+}
+
+.dropzone-content svg { color: var(--ink-4); margin-bottom: 0.75rem; }
+.dropzone-content p { margin: 0.2rem 0; }
+.dropzone-content .hint { color: var(--ink-4); font-size: 0.8rem; font-family: var(--font-mono); }
+
+/* Show "drag and drop" copy only on devices that can actually drag —
+   touch devices get a "tap to select" variant instead. Detection via
+   pointer/hover is more reliable than viewport width: a narrow desktop
+   window still supports drag, a phone in landscape does not. */
+.dz-touch { display: none; }
+@media (hover: none) and (pointer: coarse) {
+    .dz-pointer { display: none; }
+    .dz-touch { display: block; }
+}
+
+.error {
+    margin-top: 1rem;
+    padding: 0.75rem 1rem;
+    background: var(--rose-bg);
+    border: 1px solid var(--rose-border);
+    border-radius: var(--radius-sm);
+    color: var(--rose);
+    font-size: 0.875rem;
+}
+
+/* ------------------------------------------------------------ */
+/* Cards + progress                                              */
+/* ------------------------------------------------------------ */
+
+.card {
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: var(--radius);
+    padding: 1.75rem 1.75rem 1.25rem;
+    box-shadow: var(--shadow-md);
+}
+
+.progress-filename {
+    color: var(--ink-3);
+    font-size: 0.875rem;
+    margin: 0 0 0.875rem;
+    font-variant-numeric: tabular-nums;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.progress-bar {
+    height: 6px;
+    background: var(--paper-3);
+    border-radius: 999px;
+    overflow: hidden;
+}
+
+.progress-bar-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    border-radius: 999px;
+    transition: width 300ms linear;
+}
+
+/* Indeterminate variant for pages where we don't have a duration estimate
+   to animate toward (e.g. the pending /t/{id} view for a file that was
+   uploaded in another tab). A travelling fill slides back and forth so
+   the bar reads as 'something's happening' without overclaiming progress. */
+.progress-bar.indeterminate {
+    overflow: hidden;
+    position: relative;
+}
+.progress-bar.indeterminate .progress-bar-fill {
+    width: 40%;
+    animation: indeterminate 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+    transition: none;
+}
+@keyframes indeterminate {
+    0%   { transform: translateX(-120%); }
+    100% { transform: translateX(260%); }
+}
+
+.progress-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-top: 0.625rem;
+    gap: 1rem;
+}
+
+.progress-row p { margin: 0; font-size: 0.875rem; }
+.progress-eta {
+    color: var(--ink-4);
+    font-size: 0.8rem;
+    font-family: var(--font-mono);
+    font-feature-settings: "tnum";
+}
+
+/* ------------------------------------------------------------ */
+/* Transcript page                                               */
+/* ------------------------------------------------------------ */
+
+.transcript-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.transcript-title {
+    margin: 0 0 0.2rem;
+    font-family: var(--font-serif);
+    font-size: 1.5rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    line-height: 1.15;
+    font-variation-settings: "opsz" 32;
+    word-break: break-word;
+}
+
+.transcript-meta {
+    color: var(--ink-3);
+    font-size: 0.8rem;
+    margin: 0;
+    font-family: var(--font-mono);
+    font-feature-settings: "tnum";
+}
+
+.inline-form { margin: 0; }
+
+.audio-bar {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: var(--paper);
+    padding: 1rem 0;
+    margin: 0 0 1rem;
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    flex-wrap: wrap;
+    border-bottom: 1px solid var(--rule);
+}
+
+/* Native <audio controls> stays in the DOM as the playback engine, but its
+   timeline can't be recoloured cross-browser (closed shadow DOM), so we hide
+   the chrome and render our own bar below. */
+#audio { display: none; }
+
+/* Custom player. The whole point is contrast on the seek bar: the accent fill
+   marks where we are and have been, the light track marks what's still ahead —
+   far clearer than the native player's grey-on-grey. */
+.player {
+    flex: 1;
+    min-width: 240px;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.player-play {
+    flex-shrink: 0;
+    width: 38px;
+    height: 38px;
+    border-radius: 999px;
+    border: 1px solid var(--accent);
+    background: var(--accent);
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 120ms ease, border-color 120ms ease;
+}
+.player-play:hover { background: var(--accent-2); border-color: var(--accent-2); }
+/* Show exactly one icon based on state, toggled via .is-playing on the button.
+   Driven by a class rather than the hidden attribute because SVG elements
+   don't honour it. Paused -> play triangle; playing -> pause bars. */
+.player-play .ic-play { display: block; margin-left: 2px; } /* optical-centre the triangle */
+.player-play .ic-pause { display: none; }
+.player-play.is-playing .ic-play { display: none; }
+.player-play.is-playing .ic-pause { display: block; }
+
+.player-time {
+    flex-shrink: 0;
+    font-family: var(--font-mono);
+    font-feature-settings: "tnum";
+    font-size: 0.8rem;
+    color: var(--ink-3);
+}
+.player-dur { min-width: 2.6em; }
+
+.player-track {
+    position: relative;
+    flex: 1;
+    height: 8px;
+    background: var(--rule);
+    border-radius: 999px;
+    cursor: pointer;
+    touch-action: none;
+}
+.player-fill {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 0;
+    background: var(--accent);
+    border-radius: 999px;
+    pointer-events: none;
+}
+/* Handle pinned to the leading edge of the played region. */
+.player-fill::after {
+    content: "";
+    position: absolute;
+    right: -6px;
+    top: 50%;
+    width: 13px;
+    height: 13px;
+    transform: translateY(-50%);
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 1px 3px rgba(26, 25, 21, 0.3);
+}
+.player-track:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+.player-rate {
+    flex-shrink: 0;
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    color: var(--ink-2);
+    background: transparent;
+    border: 1px solid var(--rule-2);
+    border-radius: var(--radius-sm);
+    padding: 0.3rem 0.5rem;
+    cursor: pointer;
+    transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+.player-rate:hover { border-color: var(--ink); color: var(--ink); }
+
+.transcript-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+
+.transcript {
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: var(--radius);
+    padding: 1.75rem 2.25rem;
+    box-shadow: var(--shadow-sm);
+    line-height: 1.7;
+}
+
+.segment {
+    position: relative;
+    display: grid;
+    grid-template-columns: 64px 1fr;
+    gap: 0 1rem;
+    align-items: baseline;
+    padding: 0.5rem 0.75rem;
+    margin: 0 -0.75rem;
+    border-radius: var(--radius-sm);
+    transition: opacity 160ms ease, background-color 160ms ease, box-shadow 160ms ease;
+}
+
+/* Vertical rhythm lives in the gap between rows; the negative side margin
+   bleeds the active band into the card padding without shifting the text. */
+.segment + .segment { margin-top: 0.25rem; }
+
+.seek-btn {
+    all: unset;
+    cursor: pointer;
+    font-size: 0.75rem;
+    font-weight: 500;
+    font-family: var(--font-mono);
+    color: var(--ink-4);
+    padding: 0.15rem 0.4rem;
+    border-radius: 4px;
+    user-select: none;
+    -webkit-user-select: none;
+    white-space: nowrap;
+    font-feature-settings: "tnum";
+    transition: background 100ms ease, color 100ms ease;
+    align-self: start;
+    margin-top: 0.25rem;
+    text-align: left;
+}
+
+/* Timestamp rendered as pseudo-element content so it's excluded from
+   browser clipboard copies — journalists can select the whole transcript
+   and get just the speech, no timestamps in the paste. */
+.seek-btn::before {
+    content: attr(data-time);
+    display: inline-block;
+    color: var(--ink-4);
+    font-feature-settings: "tnum";
+}
+
+.seek-btn:hover { background: var(--paper-3); }
+.seek-btn:hover::before { color: var(--accent); }
+/* The time is rendered by ::before, so its colour MUST be set on ::before —
+   .seek-btn.playing alone colours nothing (the button has no text node, the
+   time lives in the pseudo-element). Accent + bold marks the active segment's
+   timestamp; the gutter bar on .segment.active carries the rest of the cue. */
+.seek-btn.playing::before { color: var(--accent); font-weight: 700; }
+
+/* Segment text is clickable — same seek+play behavior as the timestamp.
+   Padding/margin/radius are kept on the base rule so hover and active
+   share geometry and toggling the highlight never causes a reflow. */
+.segment-text {
+    font-size: 0.9375rem;
+    cursor: pointer;
+    border-radius: 4px;
+    padding: 0 4px;
+    margin: 0 -4px;
+    transition: background 120ms ease;
+}
+
+.segment-text:hover { background: var(--paper-3); }
+
+/* Journalist questions — flagged by the post-transcription LLM pass.
+   Italic + slightly muted so they read as structural framing rather
+   than the substance of the interview. */
+.segment.is-question .segment-text em {
+    font-style: italic;
+    color: var(--ink-3);
+}
+
+/* Active segment ("where we are" as audio plays) — a full-width accent band
+   with a solid bar down its left edge. Highlighting the whole row (not just
+   the text column) keeps the bar and the tint visually joined across the
+   timestamp gutter, so the current line is unmistakable against the resting
+   ones. Works in light and dark without a hardcoded color. */
+.segment.active {
+    background: rgba(var(--accent-rgb), 0.14);
+    box-shadow: inset 3px 0 0 var(--accent);
+}
+/* Keep the band clean when hovering the active line — the row tint already
+   marks it, and a gray text-hover on top would only muddy it. */
+.segment.active .segment-text:hover { background: transparent; }
+
+/* ------------------------------------------------------------ */
+/* Clip tool                                                     */
+/* ------------------------------------------------------------ */
+
+/* Full-width block inside the sticky .audio-bar (flex-wrap pushes it below
+   the main player) so the clip player stays on screen while scrolling the
+   transcript to check what the range covers. Two rows: header (range,
+   download, close) and the clip-scoped player. */
+.clip-bar {
+    flex-basis: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+    padding: 0.6rem 0.75rem;
+    background: var(--paper-2);
+    border: 1px solid var(--rule);
+    border-radius: var(--radius-sm);
+}
+.clip-bar.hidden { display: none; }
+
+.clip-head {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.clip-title {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--ink-2);
+}
+
+.clip-range { display: inline-flex; align-items: center; gap: 0.4rem; }
+
+.clip-time {
+    font-family: var(--font-mono);
+    font-feature-settings: "tnum";
+    font-size: 0.85rem;
+    color: var(--ink);
+}
+
+.clip-sep { color: var(--ink-4); }
+
+.clip-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-left: auto;
+}
+
+/* The clip player row: play toggle, extend/cut pairs flanking a track that
+   maps the clip range alone — the fill is a playhead within the clip. */
+.clip-player {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.clip-play { width: 32px; height: 32px; }
+
+.clip-edge { display: inline-flex; gap: 2px; align-items: center; }
+
+/* Start/Slutt labels and the full-width download only exist on mobile, where
+   the controls stack and lose the track-flanking cue. Desktop keeps the
+   header download and the unlabelled flanking pairs. */
+.clip-edge-label { display: none; }
+.clip-download--foot { display: none; }
+.clip-break { display: none; }
+
+.clip-bar .clip-adj {
+    padding: 0.25rem 0.4rem;
+    font-size: 0.72rem;
+    font-family: var(--font-mono);
+}
+.clip-bar .clip-adj:disabled {
+    opacity: 0.35;
+    cursor: default;
+    background: transparent;
+    color: var(--ink-2);
+}
+
+/* Trim timeline: a tall track holding a thin bar, the accent selection band
+   between two draggable handles, and a playhead line. The track is the
+   positioning context for everything inside; the bar is vertically centred and
+   the handles overhang it. */
+.clip-track {
+    position: relative;
+    flex: 1 1 160px;
+    height: 48px;
+    touch-action: none;
+    cursor: pointer;
+}
+.clip-track-base,
+.clip-sel {
+    position: absolute;
+    top: 28px;
+    height: 10px;
+    border-radius: 999px;
+    pointer-events: none;
+}
+.clip-track-base { left: 0; right: 0; background: var(--rule); }
+.clip-sel { background: var(--accent); } /* left/right set inline by JS */
+
+.clip-playhead {
+    position: absolute;
+    top: 24px;
+    height: 18px;
+    width: 2px;
+    margin-left: -1px;
+    background: var(--ink);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 120ms ease;
+}
+
+.clip-handle {
+    position: absolute;
+    top: 23px;
+    height: 20px;
+    width: 12px;
+    margin-left: -6px; /* centre the grip on its left% */
+    padding: 0;
+    background: var(--accent);
+    border: 1px solid var(--paper);
+    border-radius: 4px;
+    box-shadow: 0 1px 3px rgba(26, 25, 21, 0.3);
+    cursor: ew-resize;
+    touch-action: none;
+    z-index: 2;
+}
+/* Fat invisible hit area so the grips stay easy to grab on touch even when the
+   clip is short and they sit close together. */
+.clip-handle::before {
+    content: "";
+    position: absolute;
+    inset: -12px -11px;
+}
+/* Centre grip line for affordance. */
+.clip-handle::after {
+    content: "";
+    position: absolute;
+    top: 5px;
+    bottom: 5px;
+    left: 50%;
+    width: 2px;
+    margin-left: -1px;
+    background: rgba(255, 255, 255, 0.75);
+    border-radius: 2px;
+}
+.clip-handle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.clip-bubble {
+    position: absolute;
+    bottom: calc(100% + 5px);
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: var(--font-mono);
+    font-feature-settings: "tnum";
+    font-size: 0.7rem;
+    color: var(--accent);
+    background: var(--paper-2);
+    padding: 0 3px;
+    white-space: nowrap;
+    pointer-events: none;
+}
+
+.clip-pos {
+    font-family: var(--font-mono);
+    font-feature-settings: "tnum";
+    font-size: 0.8rem;
+    color: var(--ink-3);
+    white-space: nowrap;
+}
+
+/* Narrow screens: the flanking layout breaks down once it wraps (the ±5s
+   pairs lose the "left = start, right = end" cue), so restack into labelled
+   rows: [play + track] / [position] / [Start ±5s | Slutt ±5s] / [download].
+   Bigger tap targets throughout. */
+@media (max-width: 640px) {
+    .clip-player { justify-content: space-between; row-gap: 0.7rem; }
+    /* Trim timeline gets its own full-width row (taller, fatter grips), then
+       play + position share a row, then the Start/Slutt jumps, then download. */
+    .clip-track { order: 1; flex-basis: 100%; height: 52px; }
+    .clip-track-base, .clip-sel { top: 21px; height: 12px; }
+    .clip-playhead { top: 17px; height: 20px; }
+    .clip-handle { top: 14px; height: 26px; width: 14px; margin-left: -7px; }
+    .clip-play { order: 2; width: 44px; height: 44px; }
+    .clip-pos { order: 3; flex: 1 1 auto; text-align: right; margin: 0; }
+    /* Zero-height full-width break: ends the play row so the Start/Slutt pairs
+       wrap together below instead of one of them crowding next to the readout. */
+    .clip-break { display: block; order: 4; flex-basis: 100%; height: 0; }
+    .clip-edge { order: 5; gap: 7px; }
+    /* Keep the source order so the pairs stay mirrored: the outer button at
+       each end extends the clip outward (Start +5s on the left, Slutt +5s on
+       the right), the inner button cuts. */
+    .clip-edge-label {
+        display: inline;
+        font-size: 0.78rem;
+        color: var(--ink-3);
+    }
+    .clip-bar .clip-adj {
+        padding: 0.55rem 0.7rem;
+        font-size: 0.82rem;
+        min-width: 44px;
+        text-align: center;
+    }
+    .clip-download--head { display: none; }
+    .clip-download--foot {
+        display: block;
+        width: 100%;
+        text-align: center;
+        padding: 0.75rem;
+        font-size: 0.95rem;
+    }
+}
+
+/* Scissors button: hover-revealed in the segment's top-right corner (the row
+   is position:relative). Own paper background + border so it stays legible
+   when it overlaps a full-width text line — same idiom as code-block copy
+   buttons. Touch devices have no hover, so there it's always visible; on
+   mobile the single-column segment grid leaves the corner free anyway. */
+.clip-btn {
+    position: absolute;
+    top: 0.3rem;
+    right: 0.3rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border: 1px solid var(--rule-2);
+    border-radius: var(--radius-sm);
+    background: var(--paper);
+    color: var(--ink-3);
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+.segment:hover .clip-btn,
+.clip-btn:focus-visible { opacity: 1; }
+.clip-btn:hover { color: var(--accent); border-color: var(--accent); }
+@media (hover: none) { .clip-btn { opacity: 1; } }
+
+/* Segments covered by the current clip range — fainter cousin of .active so
+   the two read as related but playback keeps the stronger cue. :not(.active)
+   keeps the playing segment's full-strength band during preview. */
+.segment.in-clip:not(.active) {
+    background: rgba(var(--accent-rgb), 0.07);
+    box-shadow: inset 3px 0 0 rgba(var(--accent-rgb), 0.45);
+}
+
+/* ------------------------------------------------------------ */
+/* Responsive                                                    */
+/* ------------------------------------------------------------ */
+
+@media (max-width: 860px) {
+    /* Mobile layout reshuffles the sidebar so the upload CTA lands near the
+       top of the viewport. The rail collapses to a slim sticky app bar
+       (brand + theme/logout); the history list moves below main.
+       `display: contents` on .sidebar lets its children participate as
+       direct grid items so we can place each into its own grid area
+       without restructuring the HTML. */
+    .layout {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        grid-template-areas:
+            "brand    logout"
+            "newbtn   newbtn"
+            "main     main"
+            "history  history";
+        min-height: 100vh;
+    }
+    .sidebar { display: contents; }
+
+    .brand,
+    .sidebar-footer {
+        background: var(--paper-2);
+        padding: 0.75rem 1rem;
+        margin: 0;
+        align-items: center;
+        position: sticky;
+        top: 0;
+        z-index: 5;
+        border-bottom: 1px solid var(--rule);
+    }
+    .brand {
+        grid-area: brand;
+        display: inline-flex;
+        gap: 0.625rem;
+    }
+    .sidebar-footer {
+        grid-area: logout;
+        flex-direction: row;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 0.6rem;
+        border-top: none;
+        padding-top: 0.75rem;
+    }
+
+    /* "Ny transkripsjon" CTA (only rendered on transcript views) sits between
+       the topbar and the main content. Empty grid row collapses to zero on
+       the index view where the button isn't rendered. */
+    .btn-accent.btn-block {
+        grid-area: newbtn;
+        width: auto;
+        justify-self: stretch;
+        margin: 1rem 1.5rem 0;
+    }
+
+    .main {
+        grid-area: main;
+        padding: 1.5rem;
+        max-width: 100%;
+    }
+
+    /* History full-width below main. No internal scrollbar — the page scroll
+       is the natural way to browse it on phones. The rail is already light,
+       so no per-element recolor is needed here anymore. */
+    .history {
+        grid-area: history;
+        background: var(--paper);
+        padding: 0.5rem 1rem 2rem;
+        margin-top: 0;
+        max-height: none;
+        overflow: visible;
+        flex: none;
+    }
+    .history-heading { margin: 1rem 0.5rem 0.5rem; }
+    .history-item.active::before { left: -0.25rem; }
+
+    .segment { grid-template-columns: 1fr; gap: 0.2rem; }
+    .transcript { padding: 1.25rem 1.5rem; }
+
+    /* Audio bar must reach the viewport edges or the sticky topbar
+       (brand + logout) peeks through the 1.5rem main padding behind it
+       once both elements are pinned to top: 0. Negative margin pulls it
+       outside main's padding; internal padding restores content inset. */
+    .audio-bar {
+        margin: 0 -1.5rem 1rem;
+        padding: 1rem 1.5rem;
+    }
+}
+
+/* ------------------------------------------------------------ */
+/* Export menu, speaker labels, clip errors                      */
+/* ------------------------------------------------------------ */
+
+/* Standalone speaker show/hide toggle. Not wrapped in a .toggle-group, so it
+   needs its own inverted-ink active state (matches the Renset/Rå active pill).
+   Active = speaker names shown. */
+#speaker-toggle {
+    padding: 0.45rem 0.75rem;
+    font-size: 0.8125rem;
+}
+#speaker-toggle.active,
+#speaker-toggle.active:hover {
+    background: var(--ink);
+    color: var(--paper);
+    border-color: var(--ink);
+}
+
+/* Shown in place of the player when the retention sweep has deleted the
+   audio file but kept the transcript text. */
+.audio-note {
+    margin: 0;
+    color: var(--ink-3);
+    font-size: 0.875rem;
+}
+
+/* Without audio there is nothing to seek or clip — drop those affordances. */
+.transcript.no-audio .clip-btn { display: none; }
+.transcript.no-audio .seek-btn,
+.transcript.no-audio .segment-text { cursor: default; }
+.transcript.no-audio .seek-btn:hover { background: transparent; }
+.transcript.no-audio .seek-btn:hover::before { color: inherit; }
+.transcript.no-audio .segment-text:hover { background: transparent; }
+
+/* Download dropdown built on <details> so it needs no JS to open/close.
+   The summary is styled by its .btn classes; this strips the disclosure
+   marker and anchors the panel. */
+.export-menu {
+    position: relative;
+    display: inline-block;
+}
+.export-menu summary {
+    list-style: none;
+}
+.export-menu summary::-webkit-details-marker { display: none; }
+.export-menu[open] summary {
+    background: var(--paper-2);
+    color: var(--ink);
+}
+.export-menu-panel {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 0.35rem);
+    min-width: 11rem;
+    background: var(--paper);
+    border: 1px solid var(--rule-2);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-md);
+    padding: 0.3rem;
+    z-index: 20;
+}
+.export-menu-panel a {
+    display: block;
+    padding: 0.45rem 0.6rem;
+    border-radius: var(--radius-sm);
+    color: var(--ink-2);
+    font-size: 0.8125rem;
+    text-decoration: none;
+    white-space: nowrap;
+}
+.export-menu-panel a:hover {
+    background: var(--paper-2);
+    color: var(--ink);
+}
+
+/* Copy split button: primary action + a caret opening its variants. The two
+   halves read as one control — shared accent fill, a hairline seam between
+   them, and no rounding where they meet. */
+.copy-group { display: inline-flex; }
+.copy-group #copy-btn {
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+    padding-right: 0.7rem;
+}
+.copy-menu { position: relative; display: flex; }
+.copy-caret {
+    padding: 0.5rem 0.45rem;
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+    /* The seam is drawn INSIDE the accent fill; a real border here would
+       show as a pale gap against the left half. */
+    box-shadow: inset 1px 0 0 rgba(255, 255, 255, 0.28);
+    list-style: none;
+}
+.copy-caret::-webkit-details-marker { display: none; }
+/* Chrome paints a focus ring on <summary> after a plain click — keep it for
+   keyboard users only. */
+.copy-caret:focus:not(:focus-visible) { outline: none; }
+.copy-menu[open] .copy-caret { background: var(--accent-2); border-color: var(--accent-2); }
+.copy-menu[open] .copy-caret svg { transform: rotate(180deg); }
+.copy-caret svg { transition: transform 120ms ease; }
+.copy-menu-panel {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 0.35rem);
+    background: var(--paper);
+    border: 1px solid var(--rule-2);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-md);
+    padding: 0.3rem;
+    z-index: 20;
+}
+/* Rows mirror the download menu's links, plus a check gutter marking which
+   variant the main button repeats. */
+.copy-opt {
+    display: block;
+    width: 100%;
+    border: none;
+    background: transparent;
+    padding: 0.45rem 0.7rem 0.45rem 1.6rem;
+    border-radius: var(--radius-sm);
+    color: var(--ink-2);
+    font-family: inherit;
+    font-size: 0.8125rem;
+    text-align: left;
+    white-space: nowrap;
+    cursor: pointer;
+}
+.copy-opt:hover { background: var(--paper-2); color: var(--ink); }
+.copy-opt.is-active { color: var(--ink); }
+.copy-opt.is-active::before {
+    content: "✓";
+    position: absolute;
+    left: 0.75rem;
+    color: var(--accent);
+    font-size: 0.75rem;
+}
+
+/* Speaker turn labels (diarized transcripts only). The name is a tight header
+   spanning the full content width above the turn's first line, so long names
+   ("Forsker Forskersen Forskerud") run horizontally on one line instead of
+   wrapping in the narrow gutter. Mono small-caps in the timestamp idiom;
+   click to rename. */
+.speaker-label {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    justify-self: start;
+    margin: 0;
+    padding: 0 0.4rem;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--ink-3);
+    font-family: var(--font-mono);
+    font-size: 0.67rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    line-height: 1.3;
+    text-transform: uppercase;
+    text-align: left;
+    cursor: pointer;
+}
+.speaker-label:hover {
+    color: var(--accent);
+    background: var(--paper-3);
+}
+
+/* A segment that opens a new turn grows a tight header row for the speaker
+   name; the timestamp + text sit on the row below, keeping the gutter
+   alignment every other segment uses. The top margin is the only gap between
+   speakers — kept small so labelled transcripts stay compact. */
+.segment.turn-start {
+    grid-template-rows: auto auto;
+    margin-top: 0.5rem;
+}
+.segment.turn-start .seek-btn { grid-row: 2; }
+.segment.turn-start .segment-text { grid-column: 2; grid-row: 2; }
+.transcript > .segment.turn-start:first-child { margin-top: 0; }
+
+/* Speakers toggled off: collapse every turn-start back to the plain
+   timestamp+text row (label hidden) so the transcript reads as one compact,
+   unlabelled flow — same density as a non-diarized transcript. */
+.transcript.speakers-hidden .speaker-label { display: none; }
+.transcript.speakers-hidden .segment.turn-start {
+    grid-template-rows: none;
+    margin-top: 0.25rem;
+}
+.transcript.speakers-hidden .segment.turn-start .seek-btn,
+.transcript.speakers-hidden .segment.turn-start .segment-text { grid-row: auto; }
+
+/* Mobile: single column, so name → time → text stack in DOM order. This media
+   query MUST come after the desktop turn-start rules above — at equal
+   specificity, source order is what lets it win on small screens. */
+@media (max-width: 640px) {
+    .segment.turn-start { grid-template-rows: none; }
+    .segment.turn-start .seek-btn,
+    .segment.turn-start .segment-text { grid-column: 1; grid-row: auto; }
+}
+
+/* Inline error + busy state for the clip download. */
+.clip-error {
+    margin: 0.5rem 0 0;
+    color: var(--rose);
+    font-size: 0.8125rem;
+}
+.clip-error.hidden { display: none; }
+.btn.busy {
+    opacity: 0.7;
+    pointer-events: none;
+}

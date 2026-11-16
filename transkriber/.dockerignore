@@ -1,0 +1,11 @@
+__pycache__
+*.pyc
+.git
+.venv
+node_modules
+tests
+uploads
+*.db
+*.sqlite
+temp_debug_*
+.playwright-cli

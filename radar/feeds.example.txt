@@ -1,0 +1,22 @@
+# Kildene radar-fetch leser. Kopier til feeds.txt og bytt ut med deres egne.
+#
+#   Kildenavn | adressen til en RSS- eller Atom-feed
+#
+# Kildenavnet er det som vises i feeden og det `kilde:` søker på. Flere feeder
+# kan dele ett navn. Linjer som starter med # hoppes over.
+
+# Riksmedier
+NRK | https://www.nrk.no/toppsaker.rss
+VG | https://www.vg.no/rss/feed/
+Aftenposten | https://www.aftenposten.no/rss
+Dagbladet | https://www.dagbladet.no/?lab_viewport=rss
+Bergens Tidende | https://www.bt.no/rss
+
+# Fagmedier og offentlige kilder
+Khrono | https://www.khrono.no/?lab_viewport=rss
+Forskning | https://www.forskning.no/?lab_viewport=rss
+Kommunal Rapport | https://www.kommunal-rapport.no/?lab_viewport=rss
+Regjeringen | https://www.regjeringen.no/no/rss/Rss/2581966/?documentType=aktuelt/nyheter
+
+# Står i EDUCATION_NATIVE_SOURCES (vocab.py) og går forbi ordfilteret.
+Barnehage | https://www.barnehage.no/?lab_viewport=rss

@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="rules-page">
+    <h2>Faste regler</h2>
+    <p class="rules-intro">
+        Legges til hvert utkast i {{ app_name }}. Styrer innenfor redaksjonens regler,
+        men kan ikke overstyre dem. Journalistens instruks for en enkelt sak går foran.
+    </p>
+
+    {% set global_rules = rules | selectattr("user_email", "none") | list %}
+    {% set scoped_rules = rules | rejectattr("user_email", "none") | list %}
+
+    {% if not rules %}
+    <p class="drafts-empty">Ingen regler ennå.</p>
+    {% endif %}
+
+    {% if global_rules %}
+    <h3 class="rules-scope">Alle brukere</h3>
+    <ul class="rules-list">
+        {% for r in global_rules %}{% include "_rule_row.html" %}{% endfor %}
+    </ul>
+    {% endif %}
+
+    {% for email, group in scoped_rules | groupby("user_email") %}
+    <h3 class="rules-scope">{{ email }}</h3>
+    <ul class="rules-list">
+        {% for r in group %}{% include "_rule_row.html" %}{% endfor %}
+    </ul>
+    {% endfor %}
+
+    <form method="post" action="/rules" class="draft-form rules-form">
+        <div class="form-group">
+            <label for="rule-text">Ny regel</label>
+            <textarea id="rule-text" name="text" rows="2" required maxlength="2000"
+                      placeholder="F.eks. «Skriv alltid fullt navn og tittel første gang en person nevnes»"></textarea>
+        </div>
+        <div class="form-group">
+            <label for="rule-user">Gjelder <span class="label-hint">— e-post, eller tomt for alle</span></label>
+            <input type="email" id="rule-user" name="user_email" list="known-users"
+                   placeholder="Alle brukere" autocomplete="off">
+            <datalist id="known-users">
+                {% for u in users %}<option value="{{ u }}">{% endfor %}
+            </datalist>
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="btn-draft">Legg til regel</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

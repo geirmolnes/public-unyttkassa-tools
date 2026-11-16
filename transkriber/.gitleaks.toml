@@ -1,0 +1,7 @@
+# gitleaks reads this file on its own. The default rules, minus one false positive.
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "A type annotation in session_token.py (`key: Ed25519PrivateKey`), not a key"
+regexes = ['''^Ed25519PrivateKey$''']

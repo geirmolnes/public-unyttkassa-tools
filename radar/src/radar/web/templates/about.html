@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% block title %}Om radaren · Utdanningsradar{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <h1>Om radaren</h1>
+  <p class="lede">
+    Utdanningsradaren leser nyhetsstrømmen for oss og sier hva som er verdt å se på i dag.
+    Denne siden er svaret på de to spørsmålene man stiller én gang: hvordan rangeringen
+    virker, og hvor mye den har lest.
+  </p>
+</div>
+
+<div class="about-grid">
+  <div class="about-main">
+    <h2>Slik rangeres det</h2>
+    <p>
+      Alt som skrapes går gjennom et ordfilter, og det som slipper gjennom scores av en
+      språkmodell fra 0 til 100. Scoren måler nyhetsverdi, ikke tema: fagstoff og didaktikk
+      havner på 20–35 og vises som standard — vil du bare ha toppen, sett <strong>Relevans</strong>
+      i filtrene.
+    </p>
+    <p>
+      Dagene er kronologiske. <strong>I dag</strong> ligger nyeste sak øverst — dagen er ikke
+      ferdig, så det du vil vite er hva som nettopp landet. <strong>Tidligere dager</strong> er
+      sortert på score: den dagen er over, og da er spørsmålet hva som betydde noe.
+    </p>
+    <p>
+      Med søkeord rangeres listen på treffstyrke i stedet, og dagskillene forsvinner — en
+      søkeliste og en kronologisk feed svarer på ulike spørsmål. Bytt med Relevans/Dato over
+      feeden.
+    </p>
+
+    <h2>Har vi den?</h2>
+    <p>
+      Hver sak sjekkes mot vårt eget arkiv de siste {{ coverage_window_days }} dagene, så feeden
+      kan si om vi allerede har sitert eller dekket den. Får ikke dekningssjekken lest arkivet,
+      sier feeden fra i en gul stripe — da er en umerket sak ikke nødvendigvis ledig.
+    </p>
+    <p>
+      <strong>«Jeg tar denne»</strong> på en sakside markerer at du har tatt den, og setter
+      merket <em>Tatt</em> på raden i feeden for alle andre. Det er et signal, ikke en lås:
+      flere kan ta samme sak, og du slipper den igjen med samme knapp.
+    </p>
+
+    <h2>Hva radaren kaster</h2>
+    <p>
+      Feeden viser bare det som slapp gjennom. <a href="/frafiltrert">Frafiltrert</a> viser
+      resten — uten den er det ingen måte å oppdage at en kilde har sluttet å dukke opp, eller
+      at ordfilteret spiser noe det ikke burde.
+    </p>
+
+    <h2>Kilder</h2>
+    <p>
+      Radaren leser {{ sources|length }} kilder. Tabellen svarer på det som er verdt å vite om
+      dem: <strong>andelen</strong> — hvor mye av det en kilde sender inn som faktisk er
+      utdanningsstoff. Et rent utdanningsmedium ligger nær 100 %, en riksavis under én. Begge
+      deler er som det skal være; det er kilden som leverer <em>ingenting</em> over tid som er
+      verdt å se nærmere på.
+    </p>
+
+    {# One table, not two: the overflow rows live in the same tbody and are
+       hidden until the checkbox is ticked, so the columns line up and no row
+       is rendered twice. #}
+    <input type="checkbox" id="all-sources" class="source-toggle">
+    <div class="tablewrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Kilde</th><th>Artikler</th><th>Relevante</th><th>Andel</th>
+            <th title="Relevante saker med score 60 eller mer">60+</th>
+            <th title="Snittscore blant de relevante">Snitt</th><th>Siste treff</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in sources %}
+            <tr {% if loop.index > 8 %}class="source-extra"{% endif %}>
+              <td>{{ s['source'] }}</td>
+              <td class="mono">{{ s['articles'] }}</td>
+              <td class="mono">{{ s['relevant'] or 0 }}</td>
+              <td class="mono">{{ ((s['relevant'] or 0) / s['articles'] * 100)|round(1) if s['articles'] else 0 }}&nbsp;%</td>
+              <td class="mono">{{ s['strong'] or 0 }}</td>
+              <td class="mono">{{ s['avg_score']|round|int if s['avg_score'] is not none else '–' }}</td>
+              <td class="mono">{{ s['last_hit'] or '–' }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% if sources|length > 8 %}
+      <label class="source-all" for="all-sources">
+        <span class="more">Vis alle {{ sources|length }} kildene</span>
+        <span class="less">Vis færre kilder</span>
+      </label>
+    {% endif %}
+  </div>
+
+  <aside class="about-side" aria-label="Tall">
+    <div class="side-card">
+      <h4>Hva radaren har lest</h4>
+      <div class="stat-list">
+        <div class="rail-stat"><span class="v">{{ stats.relevant or 0 }}</span><span class="l">relevante totalt</span></div>
+        <div class="rail-stat"><span class="v">{{ stats.stories or 0 }}</span><span class="l">løpende saker</span></div>
+        <div class="rail-stat"><span class="v">{{ stats.ingested or 0 }}</span><span class="l">artikler vurdert</span></div>
+        {% if stats.pending %}<div class="rail-stat"><span class="v amber">{{ stats.pending }}</span><span class="l">i kø</span></div>{% endif %}
+        {% if stats.unclustered %}<div class="rail-stat"><span class="v amber">{{ stats.unclustered }}</span><span class="l">uten sak</span></div>{% endif %}
+        {% if stats.stale_prompt %}<div class="rail-stat"><span class="v amber">{{ stats.stale_prompt }}</span><span class="l">gammel prompt</span></div>{% endif %}
+      </div>
+      {% if stats.last_updated %}
+        <p class="note" style="margin-top:12px;">
+          Sist oppdatert {{ stats.last_updated|datestamp }} {{ stats.last_updated|time }}. Radaren
+          skraper på nytt innen en halvtime.
+        </p>
+      {% endif %}
+    </div>
+
+    {% if volume %}
+    <div class="side-card">
+      <h4>Treff per dag</h4>
+      {% set max_n = volume|map(attribute='n')|max if volume else 0 %}
+      <div class="side-stat">
+        <span class="v accent">{{ volume|sum(attribute='n') }}</span>
+        <span class="l">{{ volume|sum(attribute='n')|saker }} siste {{ volume|length }} dager</span>
+      </div>
+      {# Each bar is a link to that day in the feed — the only way to reach a
+         specific date short of paging back through everything after it. #}
+      <div class="spark">
+        {% for w in volume %}
+          <a class="b {% if loop.last %}hi{% endif %}"
+             href="/?{{ {'q': q.with_token('dager', w['day'])}|urlencode }}"
+             style="height: {{ [(w['n'] / max_n * 100) if max_n else 0, 6]|max }}%"
+             title="{{ w['day'] }}: {{ w['n'] }} saker"
+             aria-label="{{ w['day'] }}: {{ w['n'] }} saker"></a>
+        {% endfor %}
+      </div>
+      <div class="spark-axis"><span>{{ volume[0]['day'][5:] }}</span><span>{{ volume[-1]['day'][5:] }}</span></div>
+    </div>
+    {% endif %}
+  </aside>
+</div>
+{% endblock %}

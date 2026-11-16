@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+{% from "_macros.html" import score_dots, score_band, external_link %}
+{% block title %}{% if item %}{{ item.title|truncate_chars(70) }}{% else %}Saken finnes ikke{% endif %} · Utdanningsradar{% endblock %}
+
+{% block content %}
+{% if not item %}
+  <div class="empty-state">
+    <h3>Saken finnes ikke</h3>
+    <p>Lenken peker på en sak som ikke lenger ligger i radaren. Saker eldre enn arkivvinduet faller ut.</p>
+    <p style="margin-top:16px;"><a class="btn ghost" href="/?{{ {'q': q.raw}|urlencode }}">← Tilbake til radaren</a></p>
+  </div>
+{% else %}
+
+{# score_band tolerates NULL. A re-ingested article has its verdict cleared
+   until the next tick re-scores it, and comparing that to an int raised before
+   a single line of the page was rendered. #}
+{% set band = score_band(item.score) %}
+
+<a class="story-back" href="/?{{ {'q': q.raw}|urlencode }}">
+  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M10 3L5 8l5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  Tilbake til radaren
+</a>
+
+<article class="story">
+  <header class="story-hero">
+   <div class="hero-main">
+    <div class="story-eyebrow">
+      <a class="src" href="/?{{ {'q': 'kilde:' ~ item.source}|urlencode }}">{{ item.source|source_label }}</a>
+      <span class="sep">·</span>
+      <span>{{ item.published_day|date_long }}</span>
+      {% if item.published_at|time %}<span class="clock">{{ item.published_at|time }}</span>{% endif %}
+    </div>
+
+    <h1>{{ item.title }}</h1>
+
+    {% if item.summary %}<p class="story-lede">{{ item.summary }}</p>{% endif %}
+
+    <div class="story-chips">
+      {% if item.stage %}<span class="stage-tag stage-{{ item.stage }}">{{ stage_labels.get(item.stage, item.stage) }}</span>{% endif %}
+      {% if item.kind %}<span class="kind-tag kind-{{ item.kind }}">{{ kind_labels.get(item.kind, item.kind) }}</span>{% endif %}
+      {% for t in item.topics[:6] %}<span class="tag">{{ t }}</span>{% endfor %}
+      {% if item|behind_wall %}<span class="chip amber"><span class="dot"></span>Bak betalingsmur</span>{% endif %}
+    </div>
+
+    {# Before anything else: have we already done this one? It changes what the
+       reader does with the rest of the page. #}
+    {% if coverage %}
+      <div class="own-notice own-{{ coverage.level }}">
+        {% if coverage.level == 'oppfolging' %}
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="6.3" stroke="currentColor" stroke-width="1.9"/><path d="M8 1.7a6.3 6.3 0 010 12.6z" fill="currentColor"/></svg>
+        {% else %}
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2.5 8.5l3.5 3.5 7.5-8" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        {% endif %}
+        {# A follow-up is read in the other direction. The other two say "we have
+           this" and name the article that proves it; this one says "there is
+           something here", so what that something is comes first and our own
+           piece drops to the bottom as the reference it now is. #}
+        {% if coverage.level == 'oppfolging' %}
+          <div>
+            <strong>Vi har saken — men dette er nytt</strong>
+            {% if coverage.whats_new %}<p class="new">{{ coverage.whats_new }}</p>{% endif %}
+            <p class="ours">
+              <span class="label">Vår sak:</span>
+              <a href="{{ coverage.url }}" target="_blank" rel="noopener">{{ coverage.title }}</a>
+              <span class="when">{{ coverage.day|date_long }}</span>
+            </p>
+          </div>
+        {% else %}
+          <div>
+            <strong>
+              {% if coverage.level == 'sitert' %}Vi har sitert denne saken
+              {%- else %}Vi ser ut til å ha dekket dette{% endif %}
+            </strong>
+            <a href="{{ coverage.url }}" target="_blank" rel="noopener">{{ coverage.title }}</a>
+            <span class="when">{{ coverage.day|date_long }}</span>
+            {% if coverage.rationale %}<p class="why">{{ coverage.rationale }}</p>{% endif %}
+          </div>
+        {% endif %}
+      </div>
+    {% endif %}
+
+    {# The point of the page is the original — say so before the reader scrolls.
+       Next to it, the thing the desk does with a story it wants: hand it to
+       sitatkladd, which starts drafting the moment the tab opens. #}
+    <div class="story-actions">
+      {{ external_link(item.link, item.link|domain, 'btn accent') }}
+      <a class="btn ghost" href="{{ item.link|sitatkladd }}" target="_blank" rel="noopener"
+         title="Åpner sitatkladd med denne saken som kilde">
+        Lag sitatsak
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6 3h7v7M13 3L4 12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </a>
+
+      {# «Jeg tar denne». The desk's most expensive mistake is two people writing
+         the same sitatsak off the same hit, and until now nothing here could
+         say so. A plain form: no JavaScript, POST then redirect. #}
+      {% set mine = claims.get(item.id, [])|selectattr('user_id', 'equalto', user.id)|list %}
+      <form method="post" action="/sak/tar" class="inline-form">
+        <input type="hidden" name="id" value="{{ item.id }}">
+        <input type="hidden" name="back" value="/sak?id={{ item.id|qs_value }}{% if q.raw %}&q={{ q.raw|qs_value }}{% endif %}">
+        <input type="hidden" name="release" value="{{ 1 if mine else 0 }}">
+        <button class="btn ghost {% if mine %}on{% endif %}" type="submit">
+          {% if mine %}Slipp saken{% else %}Jeg tar denne{% endif %}
+        </button>
+      </form>
+    </div>
+
+    {% set others = claims.get(item.id, [])|rejectattr('user_id', 'equalto', user.id)|list %}
+    {% if others %}
+      <p class="claim-note">
+        Tatt av {{ others|map(attribute='user_email')|join(', ') }}.
+      </p>
+    {% endif %}
+   </div>
+
+   {# Rides the empty column beside the headline, lined up with the rail below,
+      so the score is visible from the start without pushing the story down. #}
+   <div class="story-relevance score-{{ band }}">
+     <span class="k">Relevans</span>
+     {% if item.score is not none %}
+       <div class="score-big"><span class="v">{{ item.score }}</span><span class="of">av 100</span></div>
+       <div class="score-track"><span style="width: {{ item.score }}%"></span></div>
+     {% else %}
+       <div class="score-big"><span class="v">–</span><span class="of">ikke vurdert</span></div>
+       <p class="why">Artikkelen er lest inn på nytt og venter på ny vurdering.</p>
+     {% endif %}
+     {% if item.rationale %}<p class="why">{{ item.rationale }}</p>{% endif %}
+
+     {# The feedback table has existed since the first deploy and nothing wrote
+        to it. Two buttons is what it takes for the score to be measurable. #}
+     <form method="post" action="/sak/tilbakemelding" class="vote">
+       <input type="hidden" name="id" value="{{ item.id }}">
+       <input type="hidden" name="back" value="/sak?id={{ item.id|qs_value }}{% if q.raw %}&q={{ q.raw|qs_value }}{% endif %}">
+       <button name="vote" value="1" type="submit" class="vote-btn {% if my_vote == 1 %}on{% endif %}"
+               aria-pressed="{{ 'true' if my_vote == 1 else 'false' }}" title="Treffer">Treffer</button>
+       <button name="vote" value="-1" type="submit" class="vote-btn {% if my_vote == -1 %}on{% endif %}"
+               aria-pressed="{{ 'true' if my_vote == -1 else 'false' }}" title="Bom">Bom</button>
+     </form>
+   </div>
+  </header>
+
+  <div class="story-grid">
+    <div class="story-main">
+      {% if item.image_url %}
+        <figure class="story-figure">
+          <img src="{{ item.image_url }}" alt="" loading="lazy" referrerpolicy="no-referrer">
+        </figure>
+      {% endif %}
+
+      {% if item|behind_wall %}
+        <div class="story-notice amber">
+          Saken ligger bak betalingsmur hos {{ item.link|domain }}. Teksten under er så langt kilden slipper oss inn.
+        </div>
+      {% endif %}
+
+      {% if body_html %}
+        <div class="prose">{{ body_html|safe }}</div>
+      {% else %}
+        <div class="story-notice">Ingen brødtekst hentet for denne saken. Les den hos kilden.</div>
+      {% endif %}
+
+      {% if truncated %}
+        <div class="story-notice">Teksten er avkortet i radaren. Resten står hos kilden.</div>
+      {% endif %}
+
+      {{ external_link(item.link, item.link|domain, 'btn accent story-cta') }}
+    </div>
+
+    <aside class="story-side" aria-label="Om saken">
+      {% if timeline %}
+        <div class="side-card">
+          <h4>Forløp{% if item.cluster_label %} · {{ item.cluster_label }}{% endif %}</h4>
+          <div class="tl">
+            {% for beat in timeline %}
+              {% set is_today = beat.articles|selectattr('current')|list|length > 0 %}
+              <div class="tl-item">
+                <span class="tl-dot {% if is_today %}now{% else %}past{% endif %}"></span>
+                <div class="tl-date">{{ beat.day|date_long }}</div>
+                <div class="tl-srcs">
+                  {% for a in beat.articles %}
+                    {% if a.current %}
+                      <span class="tl-src here" title="Du leser denne">{{ a.source|source_label }}<span class="t">{{ a.published_at|time }}</span></span>
+                    {% else %}
+                      <a class="tl-src" href="/sak?id={{ a.id|qs_value }}{% if q.raw %}&amp;q={{ q.raw|qs_value }}{% endif %}" title="{{ a.title }}">{{ a.source|source_label }}<span class="t">{{ a.published_at|time }}</span></a>
+                    {% endif %}
+                  {% endfor %}
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+          {% if item.cluster_id %}
+            <a class="side-more" href="/?{{ {'q': 'sak:' ~ item.cluster_id}|urlencode }}">Vis hele forløpet i feeden →</a>
+          {% endif %}
+        </div>
+      {% endif %}
+
+      {% if neighbours %}
+        <div class="side-card">
+          <h4>Samme dag</h4>
+          {% for n in neighbours %}
+            <a class="near" href="/sak?id={{ n['id']|qs_value }}{% if q.raw %}&amp;q={{ q.raw|qs_value }}{% endif %}">
+              <span class="sc">{{ score_dots(n['score'], row=true) }}</span>
+              <span class="tt">{{ n['title']|truncate_chars(72) }}</span>
+            </a>
+          {% endfor %}
+        </div>
+      {% endif %}
+
+      {# Housekeeping, not reading matter: shut by default, one click if you want it. #}
+      <div class="side-card meta-card">
+        <details>
+          <summary>Om saken</summary>
+          <div class="fact"><span class="k">Kilde</span><span class="v">{{ item.source|source_label }}</span></div>
+          {% if item.feed_name %}<div class="fact"><span class="k">Seksjon</span><span class="v">{{ item.feed_name }}</span></div>{% endif %}
+          <div class="fact"><span class="k">Publisert</span><span class="v">{{ item.published_day|date_long }}</span></div>
+          {% if item.stage %}<div class="fact"><span class="k">Trinn</span><span class="v">{{ stage_labels.get(item.stage, item.stage) }}</span></div>{% endif %}
+          {% if item.kind %}<div class="fact"><span class="k">Type</span><span class="v">{{ kind_labels.get(item.kind, item.kind) }}</span></div>{% endif %}
+          {% if item.classified_at %}<div class="fact"><span class="k">Vurdert</span><span class="v">{{ item.classified_at|datestamp }}</span></div>{% endif %}
+          {% if item.model %}<div class="fact"><span class="k">Modell</span><span class="v mono">{{ item.model }}</span></div>{% endif %}
+          {% if item.prefilter_terms %}
+            <div class="fact wrap"><span class="k">Ordtreff</span><span class="v">{{ item.prefilter_terms[:8]|join(', ') }}</span></div>
+          {% endif %}
+        </details>
+        {# outside the fold-away, so the rail always keeps a way out to the source #}
+        <a class="fact-link" href="{{ item.link }}" target="_blank" rel="noopener">
+          Åpne originalen hos {{ item.link|domain }}
+          <svg width="11" height="11" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6 3h7v7M13 3L4 12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </a>
+      </div>
+    </aside>
+  </div>
+</article>
+{% endif %}
+{% endblock %}

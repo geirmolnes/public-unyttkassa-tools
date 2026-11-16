@@ -1,0 +1,102 @@
+{# Shared marks. The dots carry the band; the exact score rides along in small
+   type where there is room for it — the feed rail and the story page. #}
+
+{% macro score_band(score) -%}
+  {%- if score is none -%}lo{%- elif score >= 80 -%}hi{%- elif score >= 60 -%}mid{%- else -%}lo{%- endif -%}
+{%- endmacro %}
+
+{% macro band_word(score) -%}
+  {%- if score is none -%}uvurdert{%- elif score >= 80 -%}kjerne{%- elif score >= 60 -%}klart{%- else -%}rand{%- endif -%}
+{%- endmacro %}
+
+{# Column-reverse, so the first dots render at the bottom and the ladder fills
+   upward. The mark carries its own strength, so it works outside a feed card. #}
+{% macro score_dots(score, row=false) -%}
+  {%- set s = score if score is not none else 0 -%}
+  {%- set filled = 3 if s >= 80 else (2 if s >= 60 else 1) -%}
+  {%- set alpha = '1' if s >= 80 else ('.6' if s >= 60 else '.38') -%}
+  <span class="score-dots{% if row %} row{% endif %}" style="--dot-alpha: {{ alpha }}"
+        role="img" aria-label="Relevans: {{ band_word(score) }}{% if score is not none %}, {{ score }} av 100{% endif %}">
+    {%- for i in range(3) %}<i {% if i < filled %}class="on"{% endif %}></i>{% endfor -%}
+  </span>
+{%- endmacro %}
+
+{# «Har vi den?». Two strengths of the same green: filled is proof — one of our
+   own articles links straight at this one — and outlined is a judgement about
+   the story. It is a link, not a span: the evidence used to live only in a
+   `title` attribute, which is unreachable on touch and unreliable to a screen
+   reader, so the one claim the desk most needs to check could not be checked. #}
+{% macro coverage_tag(mark) -%}
+  {%- if mark -%}
+  {%- if mark.url %}
+  <a class="own-tag own-{{ mark.level }} over" href="{{ mark.url }}" target="_blank" rel="noopener"
+     title="{{ mark.title }}">
+    <svg width="10" height="10" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2.5 8.5l3.5 3.5 7.5-8" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    {{ mark.label }}
+  </a>
+  {%- else %}
+  <span class="own-tag own-{{ mark.level }}" title="{{ mark.title }}">
+    <svg width="10" height="10" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2.5 8.5l3.5 3.5 7.5-8" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    {{ mark.label }}
+  </span>
+  {%- endif -%}
+  {%- endif -%}
+{%- endmacro %}
+
+{% macro external_link(url, domain, label) -%}
+  <a class="{{ label }}" href="{{ url }}" target="_blank" rel="noopener">
+    Les hele saken hos {{ domain }}
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6 3h7v7M13 3L4 12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </a>
+{%- endmacro %}
+
+{# One row of the feed. Shared by both views so the ranked list and the
+   chronological feed cannot drift apart; `show_date` is the difference — a
+   ranked list has no day rail to read the date off. #}
+{% macro feed_card(it, kind_labels, q_raw, claims, show_date=false) -%}
+  {% set own = it|coverage_mark %}
+  {% set taken = claims.get(it.id, []) %}
+  <article class="feed-card score-{{ score_band(it.score) }}{% if taken %} is-taken{% endif %}">
+    {# dots for the band, the number under them for when two rows tie #}
+    <div class="score-rail" title="Relevans: {{ band_word(it.score) }}{% if it.score is not none %} ({{ it.score }} av 100){% endif %}">
+      {{ score_dots(it.score) }}
+      <span class="score-num">{{ it.score if it.score is not none else '–' }}</span>
+    </div>
+    <div class="body">
+      <div class="head">
+        <a class="src over" href="/?{{ {'q': 'kilde:' ~ it.source}|urlencode }}" title="Bare {{ it.source|source_label }}">{{ it.source|source_label }}</a>
+        {# stage is how the rail filters the feed, so repeating it on every
+           row says nothing the reader didn't already choose. It stays on
+           the story page, where there is no rail to read it off. #}
+        {{ coverage_tag(own) }}
+        {% if it.kind and it.kind != 'nyhet' %}<span class="kind-tag kind-{{ it.kind }}">{{ kind_labels.get(it.kind, it.kind) }}</span>{% endif %}
+        {% set others = it.other_sources|other_sources %}
+        {% if others %}<span class="also-tag" title="Samme sak er dekket av flere — se tidslinjen på saksiden">{{ others }}</span>{% endif %}
+        {% if taken %}<span class="taken-tag" title="{{ taken|map(attribute='user_email')|join(', ') }}">Tatt</span>{% endif %}
+        <span class="spacer"></span>
+        {% if it|behind_wall %}<span class="chip amber" title="Bak betalingsmur"><span class="dot"></span>Låst</span>{% endif %}
+        {% if show_date %}<span class="clock">{{ it.published_day|datestamp }}</span>{% endif %}
+        <span class="clock">{{ it.published_at|time }}</span>
+      </div>
+      {# the anchor's ::after covers the card, so the whole surface opens the story #}
+      <h3><a class="card-link" href="/sak?id={{ it.id|qs_value }}{% if q_raw %}&amp;q={{ q_raw|qs_value }}{% endif %}">{{ it.title_hl|highlighted if it.title_hl else it.title }}</a></h3>
+      {% set snip = it.body_snippet|highlighted if it.body_snippet else '' %}
+      {% if snip %}<p class="excerpt">{{ snip }}</p>
+      {% elif it.summary %}<p class="excerpt">{{ it.summary|truncate_chars(220) }}</p>{% endif %}
+      {# topics live on the story page — in the feed they crowded the row
+         without telling the reader anything the rationale doesn't #}
+      <div class="meta-foot">
+        {% if own and own.level == 'oppfolging' and own.whats_new %}
+          <span class="why new">{{ own.whats_new }}</span>
+        {% elif it.rationale %}<span class="why">{{ it.rationale }}</span>{% endif %}
+        <a class="ext over" href="{{ it.link }}" target="_blank" rel="noopener" title="Åpne originalen hos {{ it.link|domain }}">
+          {{ it.link|domain }}
+          <svg width="11" height="11" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6 3h7v7M13 3L4 12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </a>
+      </div>
+    </div>
+    <span class="card-go" aria-hidden="true">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M6 3l5 5-5 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </span>
+  </article>
+{%- endmacro %}

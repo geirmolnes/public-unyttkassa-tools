@@ -1,0 +1,8 @@
+__pycache__
+*.pyc
+.git
+.venv
+tests
+*.sqlite
+profiling_log.md
+temp_debug_*

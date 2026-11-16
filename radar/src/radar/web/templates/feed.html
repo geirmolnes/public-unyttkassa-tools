@@ -1,0 +1,296 @@
+{% extends "base.html" %}
+{% block title %}Utdanningsradar · {{ total }} {{ total|saker }}{% endblock %}
+
+{% from "_macros.html" import score_band, band_word, score_dots, coverage_tag, feed_card %}
+
+{% block content %}
+{# The page's own heading. Visually the wordmark in the rail does this job, but
+   a main landmark with no h1 leaves a screen reader with nothing to announce
+   the page as. #}
+<h1 class="sr-only">Utdanningsradar — {{ total }} {{ total|saker }}{% if q.text %} for «{{ q.text }}»{% endif %}</h1>
+{# Search is a search box and filters are controls. They used to be the same
+   text field, which reads fine to someone who writes queries for a living and
+   like a command line to everyone else. The token grammar still parses — a URL
+   with `trinn:barnehage` in it works, and so does typing it — but nothing
+   advertises it, and the panel below is how you actually filter. #}
+<div class="searchrow">
+  <form class="searchform" method="get" action="/" role="search">
+    <span class="s-glass" aria-hidden="true">
+      <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="4.6" stroke="currentColor" stroke-width="1.5"/><path d="M10.5 10.5L14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+    </span>
+    <label class="sr-only" for="sok">Søk i saker</label>
+    <input id="sok" name="sok" type="search" value="{{ q.text }}" autocomplete="off"
+           placeholder="Søk i tittel, ingress og brødtekst …">
+    {# The filters ride along, so searching does not silently drop them. #}
+    <input type="hidden" name="filtre" value="{{ q.filter_tokens }}">
+    <button class="s-go" type="submit">Søk</button>
+  </form>
+
+  <details class="filterbox" id="filterbox">
+    <summary class="filter-btn">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2 4h12M4.5 8h7M7 12h2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+      Filtre
+      {% if q.chips %}<span class="filter-count">{{ q.chips|length }}</span>{% endif %}
+      <svg class="filter-caret" width="11" height="11" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </summary>
+
+    {# A plain GET form. With JavaScript off this submits the checkboxes and the
+       route turns them into the canonical query; with it on, nothing changes
+       except that the panel closes on Escape. #}
+    <form class="filter-panel" method="get" action="/">
+      <input type="hidden" name="sok" value="{{ q.text }}">
+
+      <div class="fp-grid">
+        <fieldset>
+          <legend>Trinn</legend>
+          {% for key, label in stage_labels.items() %}
+            <label class="fp-opt">
+              <input type="checkbox" name="trinn" value="{{ key }}" {% if key in q.stages %}checked{% endif %}>
+              <span class="stage-dot stage-{{ key }}" aria-hidden="true"></span>
+              <span class="fp-label">{{ label }}</span>
+              <span class="fp-n">{{ facets.trinn.get(key, 0) }}</span>
+            </label>
+          {% endfor %}
+        </fieldset>
+
+        <fieldset>
+          <legend>Type</legend>
+          {% for key, label in kind_labels.items() %}
+            <label class="fp-opt">
+              <input type="checkbox" name="type" value="{{ key }}" {% if key in q.kinds %}checked{% endif %}>
+              <span class="fp-label">{{ label }}</span>
+              <span class="fp-n">{{ facets.type.get(key, 0) }}</span>
+            </label>
+          {% endfor %}
+        </fieldset>
+
+        <fieldset>
+          <legend>Har vi den?</legend>
+          {% for key in ['nei', 'ja', 'sitert', 'dekket', 'oppfolging'] %}
+            <label class="fp-opt">
+              <input type="checkbox" name="dekning" value="{{ key }}" {% if key in q.coverage %}checked{% endif %}>
+              <span class="fp-label">{{ coverage_labels[key] }}</span>
+              {% if key in ('ja', 'nei') %}<span class="fp-n">{{ facets.dekning.get(key, 0) }}</span>{% endif %}
+            </label>
+          {% endfor %}
+        </fieldset>
+
+        <fieldset>
+          <legend>Relevans</legend>
+          {% for value, label in [('0', 'Alt'), ('40', '40 og oppover'), ('60', '60 og oppover'), ('80', 'Bare de tyngste')] %}
+            <label class="fp-opt">
+              <input type="radio" name="score" value="{{ value }}"
+                     {% if (q.min_score if q.min_score is not none else feed_min_score)|string == value %}checked{% endif %}>
+              <span class="fp-label">{{ label }}</span>
+            </label>
+          {% endfor %}
+        </fieldset>
+
+        <fieldset>
+          <legend>Periode</legend>
+          {% for value, label in [('', 'Hele vinduet'), ('1', 'I dag'), ('3', 'Siste 3 dager'), ('7', 'Siste uke'), ('14', 'Siste to uker')] %}
+            <label class="fp-opt">
+              <input type="radio" name="dager" value="{{ value }}"
+                     {% if (q.days_token or '') == value %}checked{% endif %}>
+              <span class="fp-label">{{ label }}</span>
+            </label>
+          {% endfor %}
+          <label class="fp-opt fp-check">
+            <input type="checkbox" name="mur" value="nei" {% if q.paywalled is false %}checked{% endif %}>
+            <span class="fp-label">Skjul saker bak betalingsmur</span>
+          </label>
+        </fieldset>
+
+        <fieldset class="fp-sources">
+          <legend>Kilde</legend>
+          <div class="fp-scroll">
+            {% for s in sources %}
+              {% set n = facets.kilde.get(s, 0) %}
+              {% if n or s in q.sources %}
+                <label class="fp-opt">
+                  <input type="checkbox" name="kilde" value="{{ s }}" {% if s in q.sources %}checked{% endif %}>
+                  <span class="fp-label">{{ s|source_label }}</span>
+                  <span class="fp-n">{{ n }}</span>
+                </label>
+              {% endif %}
+            {% endfor %}
+          </div>
+        </fieldset>
+      </div>
+
+      <div class="fp-foot">
+        <a class="btn ghost" href="/?{{ {'sok': q.text}|urlencode }}">Nullstill filtre</a>
+        <button class="btn accent" type="submit">Bruk filtre</button>
+      </div>
+    </form>
+  </details>
+
+  {# «Skjul»: a word the reader is tired of, for this browser session only. It
+     is not a filter in the URL sense — a filter says what you want, this says
+     what you have had enough of, and it should not follow a shared link. #}
+  <details class="filterbox mutebox" id="mutebox">
+    <summary class="filter-btn">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2 8s2.2-4 6-4 6 4 6 4-2.2 4-6 4-6-4-6-4Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><circle cx="8" cy="8" r="1.8" stroke="currentColor" stroke-width="1.5"/><path d="M3 13L13 3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+      Skjul
+      {% if q.hidden %}<span class="filter-count">{{ q.hidden|length }}</span>{% endif %}
+      <svg class="filter-caret" width="11" height="11" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </summary>
+
+    <div class="filter-panel mute-panel">
+      <form class="mute-form" method="post" action="/skjul">
+        <input type="hidden" name="back" value="{{ back_url }}">
+        <label class="mute-label" for="skjul-ord">Skjul saker som nevner</label>
+        <div class="mute-row">
+          <input id="skjul-ord" name="ord" type="text" maxlength="40" required
+                 autocomplete="off" placeholder="f.eks. PISA">
+          <button class="btn accent" type="submit">Skjul</button>
+        </div>
+      </form>
+      {% if q.hidden %}
+        <ul class="mute-list">
+          {% for term in q.hidden %}
+            {% set n = hidden_counts.get(term, 0) %}
+            <li>
+              <span class="mute-term">{{ term }}</span>
+              <span class="fp-n">{{ n }} {{ n|saker }}</span>
+              <form method="post" action="/skjul">
+                <input type="hidden" name="back" value="{{ back_url }}">
+                <input type="hidden" name="fjern" value="{{ term }}">
+                <button class="mute-x" type="submit" aria-label="Vis saker om «{{ term }}» igjen" title="Vis igjen">×</button>
+              </form>
+            </li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+      <p class="mute-note">Ser på tittel, ingress, tema og hvilket sakskompleks saken hører til. Gjelder bare denne nettleserøkten — ingen andre ser hva du har skjult.</p>
+    </div>
+  </details>
+</div>
+
+{% if q.chips or q.hidden %}
+  <div class="active-filters">
+    {% if q.chips %}
+      <span class="af-label">Filtrert på</span>
+      {% for chip in q.chips %}
+        <a class="af-chip" href="/?{{ {'q': q.without(chip)}|urlencode }}">
+          {{ chip.display }}
+          <span class="x" aria-hidden="true">×</span>
+          <span class="sr-only">— fjern dette filteret</span>
+        </a>
+      {% endfor %}
+      <a class="af-clear" href="/?{{ {'sok': q.text}|urlencode }}">Tøm alle</a>
+    {% endif %}
+    {% if q.hidden %}
+      {# Always on the page, never only in the panel: a story the desk cannot
+         see is a story it does not know it is missing. #}
+      <span class="af-label af-mute">Skjuler</span>
+      {% for term in q.hidden %}
+        {% set n = hidden_counts.get(term, 0) %}
+        <form class="af-chipform" method="post" action="/skjul">
+          <input type="hidden" name="back" value="{{ back_url }}">
+          <input type="hidden" name="fjern" value="{{ term }}">
+          <button class="af-chip af-muted" type="submit" title="Vis {{ n }} {{ n|saker }} om «{{ term }}» igjen">
+            <span class="af-term">{{ term }}</span>
+            <span class="af-n">{{ n }}</span>
+            <span class="x" aria-hidden="true">×</span>
+            <span class="sr-only">— vis disse sakene igjen</span>
+          </button>
+        </form>
+      {% endfor %}
+    {% endif %}
+  </div>
+{% endif %}
+
+{# Only what changes what the reader should believe about the page in front of
+   them. How the machinery is doing — failed calls, the last exception, what a
+   run cost — is on example.org/admin, because a journalist can do nothing
+   with «1 modellkall feilet» except learn to scroll past banners. #}
+{% if stats.archive_seen == 0 %}
+  <div class="banner amber">
+    <strong>«Har vi den?» er ubesvart akkurat nå.</strong>
+    Dekningssjekken fikk ikke lest arkivet sist, så en sak uten merke er ikke
+    nødvendigvis ledig — sjekk selv før du går på den.
+  </div>
+{% elif stale_hours %}
+  <div class="banner amber">
+    <strong>Radaren har ikke oppdatert seg på {{ stale_hours }} timer.</strong>
+    Siste oppdatering var {{ stats.last_updated|datestamp }} {{ stats.last_updated|time }}. Nyere saker kan mangle.
+  </div>
+{% endif %}
+
+<div class="body-grid">
+  <div class="feed">
+    {% if not page.days and not page.items %}
+      <div class="empty-state">
+        {% if q.hidden and hidden_counts.values()|sum %}
+          <h3>Alt som er igjen er skjult</h3>
+          <p>Ordene du skjuler treffer hver sak i dette utvalget. Trykk på et av dem over for å vise sakene igjen.</p>
+        {% elif q.is_empty %}
+          <h3>Ingen saker ennå</h3>
+          <p>Radaren fyller seg opp for hver skraping. Neste kjøring er innen en halvtime.</p>
+        {% elif q.text %}
+          <h3>Ingen treff for «{{ q.text }}»</h3>
+          <p>Prøv et kortere ord — søket forstår sammensetninger, så «skole» finner også «skolestart».</p>
+          <p style="margin-top:14px;"><a class="btn ghost" href="/?{{ {'q': q.text}|urlencode }}">Søk uten filtre</a>
+          <a class="btn ghost" href="/">Tøm alt</a></p>
+        {% else %}
+          <h3>Ingen saker med disse filtrene</h3>
+          <p>Kombinasjonen finnes ikke i vinduet radaren dekker. Fjern et filter, eller senk terskelen.</p>
+          <p style="margin-top:14px;"><a class="btn ghost" href="/">Tøm alt</a></p>
+        {% endif %}
+      </div>
+    {% endif %}
+
+    {% if page.mode == 'time' %}
+      {% for day, items in page.days %}
+        {% set y = day[0:4]|int %}{% set mo = day[5:7]|int %}{% set d = day[8:10]|int %}
+        <div class="feed-day">
+          <div class="day-mark">
+            <div class="d">{{ '%02d'|format(d) }}</div>
+            <div class="m">{{ months[mo][:3] if 1 <= mo <= 12 else '' }}</div>
+            <div class="y">{{ y }}</div>
+            {# The unpaginated total: a page boundary cuts a day in half, and
+               «12 saker» over a day showing three is a wrong number. #}
+            {% set day_n = page.day_totals.get(day, items|length) %}
+            <div class="n">{{ day_n }} {{ day_n|saker }}</div>
+            {% if loop.first and q.page > 1 %}<div class="cont">forts.</div>{% endif %}
+          </div>
+          <div class="day-items">
+            {% for it in items %}{{ feed_card(it, kind_labels, q.raw, claims) }}{% endfor %}
+          </div>
+        </div>
+      {% endfor %}
+    {% else %}
+      <div class="rank-items">
+        {% for it in page.items %}{{ feed_card(it, kind_labels, q.raw, claims, show_date=true) }}{% endfor %}
+      </div>
+    {% endif %}
+
+    {% if total_pages > 1 %}
+      <nav class="pagination" aria-label="Sider">
+        <span>{{ (q.page - 1) * per_page + 1 }}–{{ [q.page * per_page, total]|min }} av {{ total }}</span>
+        <div class="pages">
+          {% if q.page > 1 %}
+            <a href="/?{{ {'q': q.raw, 'page': q.page - 1}|urlencode }}">‹ Forrige</a>
+          {% else %}<span class="dis">‹ Forrige</span>{% endif %}
+          {% for p in range(1, total_pages + 1) %}
+            {% if p == 1 or p == total_pages or (p >= q.page - 2 and p <= q.page + 2) %}
+              <a href="/?{{ {'q': q.raw, 'page': p}|urlencode }}" class="{% if p == q.page %}active{% endif %}"
+                 {% if p == q.page %}aria-current="page"{% endif %}>{{ p }}</a>
+            {% elif p == q.page - 3 or p == q.page + 3 %}
+              <span class="dis">…</span>
+            {% endif %}
+          {% endfor %}
+          {% if q.page < total_pages %}
+            <a href="/?{{ {'q': q.raw, 'page': q.page + 1}|urlencode }}">Neste ›</a>
+          {% else %}<span class="dis">Neste ›</span>{% endif %}
+        </div>
+      </nav>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/cmd.js?v={{ style_v }}" defer></script>
+{% endblock %}

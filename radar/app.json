@@ -1,0 +1,26 @@
+{
+  "cron": [
+    {
+      "command": "radar-fetch",
+      "schedule": "5,35 * * * *"
+    },
+    {
+      "command": "radar-tick",
+      "schedule": "20,50 * * * *"
+    },
+    {
+      "command": "radar-backup --keep 3",
+      "schedule": "5 3 * * *"
+    },
+    {
+      "command": "radar-prune",
+      "schedule": "35 3 * * 0"
+    }
+  ],
+  "healthchecks": {
+    "web": [
+      {"type": "startup", "name": "web check", "path": "/health", "attempts": 3},
+      {"type": "liveness", "name": "web alive", "path": "/health", "attempts": 3}
+    ]
+  }
+}

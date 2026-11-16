@@ -1,0 +1,211 @@
+{% extends "base.html" %}
+
+{% block title %}{{ record.filename }} — Transkriber{% endblock %}
+
+{% block main %}
+<header class="page-header transcript-header">
+    <div>
+        <h1 class="transcript-title">{{ record.filename }}</h1>
+        <p class="transcript-meta">
+            <span data-iso="{{ record.created_at }}">{{ record.created_at[:10] }}</span>
+            {% if record.language %} · {{ record.language }}{% endif %}
+            {% if record.transcript %} · {{ record.transcript.segments|length }} segmenter{% endif %}
+        </p>
+    </div>
+    <form action="/t/{{ record.id }}/delete" method="post" class="inline-form"
+          onsubmit="return confirm('Slett denne transkripsjonen permanent?');">
+        <button type="submit" class="btn btn-ghost btn-danger">Slett</button>
+    </form>
+</header>
+
+{% if record.status == "done" %}
+<section id="transcript-view">
+    <div class="audio-bar">
+        {% if audio_available %}
+        <audio id="audio" preload="metadata" src="/audio/{{ record.id }}"></audio>
+        <div class="player">
+            <button class="player-play" id="play-btn" type="button" aria-label="Spill av">
+                <svg class="ic-play" width="15" height="15" viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 3.2v9.6l8-4.8z" fill="currentColor"/></svg>
+                <svg class="ic-pause" width="15" height="15" viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 3.2h2.4v9.6H4.5zM9.1 3.2h2.4v9.6H9.1z" fill="currentColor"/></svg>
+            </button>
+            <span class="player-time" id="cur-time">0:00</span>
+            <div class="player-track" id="seek" role="slider" tabindex="0"
+                 aria-label="Søk i opptaket" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                <div class="player-fill" id="seek-fill"></div>
+            </div>
+            <span class="player-time player-dur" id="dur-time">0:00</span>
+            <button class="player-rate" id="rate-btn" type="button" aria-label="Avspillingshastighet">1×</button>
+        </div>
+        {% else %}
+        <p class="audio-note">Lydfilen er slettet etter oppbevaringsperioden — teksten er bevart.</p>
+        {% endif %}
+        <div class="transcript-actions">
+            {% if not record.questions_done or not record.cleaned_done %}
+            <div id="post-processing-indicator" class="post-processing" role="status"
+                 aria-live="polite">
+                <span class="spinner" aria-hidden="true"></span>
+                <span>Etterbehandler teksten…</span>
+            </div>
+            {% endif %}
+            <div id="clean-toggle-group" class="toggle-group hidden" role="group"
+                 aria-label="Visningsmodus">
+                <button id="toggle-cleaned" class="btn btn-ghost toggle-btn" type="button"
+                        aria-pressed="true">Renset</button>
+                <button id="toggle-raw" class="btn btn-ghost toggle-btn" type="button"
+                        aria-pressed="false">Rå</button>
+            </div>
+            {# Revealed by transcript.js only when the transcript is diarized
+               (ElevenLabs). Toggles the speaker-name headers on/off. #}
+            <button id="speaker-toggle" class="btn btn-ghost toggle-btn hidden" type="button"
+                    aria-pressed="true" title="Vis eller skjul talernavn">Talere</button>
+            <details class="export-menu" id="export-menu">
+                <summary class="btn btn-ghost" role="button">Last ned</summary>
+                <div class="export-menu-panel">
+                    <a data-format="txt" href="/t/{{ record.id }}/export?format=txt">Ren tekst (.txt)</a>
+                    <a data-format="docx" href="/t/{{ record.id }}/export?format=docx">Word (.docx)</a>
+                    <a data-format="srt" href="/t/{{ record.id }}/export?format=srt">Undertekster (.srt)</a>
+                    <a data-format="vtt" href="/t/{{ record.id }}/export?format=vtt">Undertekster (.vtt)</a>
+                </div>
+            </details>
+            {# Split button: the main half repeats whatever variant was last
+               chosen (plain by default — pasting into an article should give
+               clean prose), the caret opens the two variants. The label never
+               changes, so the action bar doesn't reflow on toggle. #}
+            <div class="copy-group">
+                <button id="copy-btn" class="btn btn-primary" type="button">Kopier tekst</button>
+                <details class="copy-menu" id="copy-menu">
+                    <summary class="btn btn-primary copy-caret" role="button"
+                             aria-label="Flere kopivalg" title="Flere kopivalg">
+                        <svg width="10" height="10" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 6l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </summary>
+                    <div class="copy-menu-panel" role="menu">
+                        <button class="copy-opt" type="button" role="menuitem"
+                                data-copy-mode="plain">Kopier tekst</button>
+                        <button class="copy-opt" type="button" role="menuitem"
+                                data-copy-mode="stamps">Kopier med tidskoder</button>
+                    </div>
+                </details>
+            </div>
+        </div>
+
+        {% if audio_available %}
+        <div id="clip-bar" class="clip-bar hidden" role="region" aria-label="Klippeverktøy">
+            <div class="clip-head">
+                <span class="clip-title">Klipp</span>
+                <span class="clip-range">
+                    <span class="clip-time" id="clip-start">0:00</span>
+                    <span class="clip-sep" aria-hidden="true">→</span>
+                    <span class="clip-time" id="clip-end">0:00</span>
+                </span>
+                <div class="clip-actions">
+                    <a class="btn btn-primary clip-download clip-download--head" href="#">Last ned klipp</a>
+                    <button id="clip-close" class="btn btn-ghost" type="button"
+                            aria-label="Lukk klippeverktøy">✕</button>
+                </div>
+            </div>
+            {# Clip player: + always EXTENDS the clip outward at that end, −
+               always CUTS inward — same labels both ends, mirrored. #}
+            <div class="clip-player">
+                <button class="player-play clip-play" id="clip-play" type="button"
+                        aria-label="Spill av klipp">
+                    <svg class="ic-play" width="13" height="13" viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 3.2v9.6l8-4.8z" fill="currentColor"/></svg>
+                    <svg class="ic-pause" width="13" height="13" viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 3.2h2.4v9.6H4.5zM9.1 3.2h2.4v9.6H9.1z" fill="currentColor"/></svg>
+                </button>
+                <div class="clip-edge clip-edge--start">
+                    <span class="clip-edge-label" aria-hidden="true">Start</span>
+                    <button class="btn btn-ghost clip-adj" data-bound="start" data-dir="extend"
+                            type="button" aria-label="Utvid starten 5 sekunder"
+                            title="Utvid starten 5 sekunder">+5s</button>
+                    <button class="btn btn-ghost clip-adj" data-bound="start" data-dir="cut"
+                            type="button" aria-label="Kutt 5 sekunder fra starten"
+                            title="Kutt 5 sekunder fra starten">−5s</button>
+                </div>
+                {# Trim timeline: the bar spans the clip plus a little context
+                   on each side; the accent band between the two handles is the
+                   selection. Drag a handle to set that edge precisely; the
+                   ±5s buttons jump coarsely and re-frame the window. #}
+                <div class="clip-track" id="clip-track" aria-label="Klippeområde">
+                    <div class="clip-track-base"></div>
+                    <div class="clip-sel" id="clip-sel"></div>
+                    <div class="clip-playhead" id="clip-playhead"></div>
+                    <button class="clip-handle clip-handle--start" id="clip-handle-start"
+                            type="button" role="slider" tabindex="0"
+                            aria-label="Flytt starten på klippet"
+                            aria-valuemin="0" aria-valuemax="0" aria-valuenow="0">
+                        <span class="clip-bubble" id="clip-bubble-start" aria-hidden="true">0:00</span>
+                    </button>
+                    <button class="clip-handle clip-handle--end" id="clip-handle-end"
+                            type="button" role="slider" tabindex="0"
+                            aria-label="Flytt slutten på klippet"
+                            aria-valuemin="0" aria-valuemax="0" aria-valuenow="0">
+                        <span class="clip-bubble" id="clip-bubble-end" aria-hidden="true">0:00</span>
+                    </button>
+                </div>
+                <div class="clip-edge clip-edge--end">
+                    <span class="clip-edge-label" aria-hidden="true">Slutt</span>
+                    <button class="btn btn-ghost clip-adj" data-bound="end" data-dir="cut"
+                            type="button" aria-label="Kutt 5 sekunder fra slutten"
+                            title="Kutt 5 sekunder fra slutten">−5s</button>
+                    <button class="btn btn-ghost clip-adj" data-bound="end" data-dir="extend"
+                            type="button" aria-label="Utvid slutten 5 sekunder"
+                            title="Utvid slutten 5 sekunder">+5s</button>
+                </div>
+                <span class="clip-pos">
+                    <span id="clip-cur">0:00</span><span class="clip-pos-sep"> / </span><span id="clip-len">0:00</span>
+                </span>
+                {# Mobile-only flex break: forces the Start/Slutt pairs onto
+                   their own row below play + position instead of crowding in. #}
+                <div class="clip-break" aria-hidden="true"></div>
+            </div>
+            <a class="btn btn-primary clip-download clip-download--foot" href="#">Last ned klipp</a>
+            <p id="clip-error" class="clip-error hidden" role="alert"></p>
+        </div>
+        {% endif %}
+    </div>
+
+    <article id="transcript" class="transcript{% if not audio_available %} no-audio{% endif %}"
+             data-job-id="{{ record.id }}"
+             data-speakers='{{ record.speaker_names | tojson }}'
+             data-transcript='{{ record.transcript | tojson }}'></article>
+</section>
+{% elif record.status == "error" %}
+<div class="error">
+    <strong>Transkripsjon feilet:</strong>
+    <p>{{ record.error }}</p>
+</div>
+{% else %}
+<section id="pending-view">
+    <div class="card">
+        <p class="progress-filename">{{ record.filename }}</p>
+        <div class="progress-bar indeterminate" role="progressbar" aria-label="Transkriberer">
+            <div class="progress-bar-fill"></div>
+        </div>
+        <div class="progress-row">
+            <p>Transkriberer... denne siden oppdaterer seg når transkripsjonen er ferdig.</p>
+        </div>
+    </div>
+</section>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{# Inline poll-ID globals MUST be set before transcript.js loads — external
+   <script src> without defer/async executes in document order and blocks
+   parsing, so if transcript.js comes first it reads these globals while
+   they're still undefined and the polling logic never kicks in. That's
+   why the cleanup toggle only appeared after a manual refresh before. #}
+{% if record.status != "done" and record.status != "error" %}
+<script>
+    // This transcript is still processing — poll and reload on completion.
+    window.TRANSCRIBER_POLL_ID = "{{ record.id }}";
+</script>
+{% elif record.status == "done" and (not record.questions_done or not record.cleaned_done) %}
+<script>
+    // Transcription finished but one of the post-passes (question detection
+    // or filler cleanup) is still running — poll and reload when they're
+    // done so italics / the clean-toggle appear.
+    window.TRANSCRIBER_POST_POLL_ID = "{{ record.id }}";
+</script>
+{% endif %}
+<script src="/static/transcript.js?v={{ asset_version }}"></script>
+{% endblock %}

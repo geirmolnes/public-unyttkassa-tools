@@ -1,0 +1,11 @@
+{
+  "name": "unytt-transkriber-tests",
+  "private": true,
+  "scripts": {
+    "test": "bun test tests/"
+  },
+  "devDependencies": {
+    "@happy-dom/global-registrator": "^21.0.4",
+    "happy-dom": "^21.0.4"
+  }
+}

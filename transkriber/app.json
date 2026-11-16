@@ -1,0 +1,40 @@
+{
+  "name": "unytt-transkriber",
+  "description": "Journalist transcription tool powered by ElevenLabs Scribe",
+  "keywords": [
+    "transcription",
+    "gemini",
+    "journalism"
+  ],
+  "env": {
+    "GEMINI_API_KEY": {
+      "description": "Google Gemini API key from https://aistudio.google.com/apikey",
+      "required": true
+    },
+    "SESSION_PUBLIC_KEYS": {
+      "description": "Public key(s) that verify the unyttkassa login cookie (not secret). Copy from: dokku config:get unyttkassa SESSION_PUBLIC_KEYS",
+      "required": true
+    },
+    "SESSION_ISSUER": {
+      "description": "Issuer the login cookie must name",
+      "value": "example.org"
+    },
+    "MAX_UPLOAD_MB": {
+      "description": "Maximum upload size in MB. Keep nginx client-max-body-size above it.",
+      "value": "2048"
+    }
+  },
+  "healthchecks": {
+    "web": [
+      {
+        "type": "startup",
+        "name": "healthz",
+        "description": "Checking /healthz",
+        "path": "/healthz",
+        "attempts": 10,
+        "wait": 3,
+        "timeout": 5
+      }
+    ]
+  }
+}

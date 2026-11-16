@@ -1,0 +1,13 @@
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.venv/
+profiling_log.md
+
+# gralph internals
+gralph/.ralph_error.txt
+gralph/.ralph_retries.txt
+gralph/.ralph_state.json
+
+# claude session files (worktrees, launch config)
+.claude/

@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="drafts-page">
+    <h2>Tidligere utkast</h2>
+    {% if drafts %}
+    <ul class="drafts-list">
+        {% for d in drafts %}
+        <li>
+            <a href="/drafts/{{ d.id }}">
+                <span class="draft-title">{{ d.title }}</span>
+                <span class="draft-meta">
+                    {{ d.created_at }} · {{ d.model.replace("google-gla:", "") }}
+                    {% if d.quotes_ok == 0 %} · <span class="draft-flag">sitatavvik</span>{% endif %}
+                </span>
+            </a>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p class="drafts-empty">Ingen utkast ennå. <a href="/">Lag det første.</a></p>
+    {% endif %}
+</div>
+{% endblock %}

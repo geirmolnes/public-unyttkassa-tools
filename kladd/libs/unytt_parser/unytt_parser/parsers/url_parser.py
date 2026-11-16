@@ -1,0 +1,183 @@
+"""URL parser using trafilatura for article extraction."""
+
+from __future__ import annotations
+
+import tempfile
+import urllib.request
+from copy import deepcopy
+from pathlib import Path
+from urllib.parse import urlparse
+
+import lxml.html
+import trafilatura
+from lxml.html import tostring as html_tostring
+from trafilatura.downloads import fetch_response
+from trafilatura.settings import DEFAULT_CONFIG
+
+from unytt_parser.models import ParsedSource, SourceType
+from unytt_parser.parsers.pdf_parser import parse_pdf
+
+# Cloudflare bot rules disagree per site, so no single UA works everywhere.
+# arabnews.com 403s full browser UAs (UA/TLS-fingerprint mismatch) and
+# trafilatura's default, but passes a bare "Mozilla/5.0". gemini.no 403s exactly
+# that bare UA but passes the other two. Each is tried in order on a 403.
+_USER_AGENT = "Mozilla/5.0"
+_BROWSER_USER_AGENT = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
+)
+
+
+def _config_with_user_agent(user_agent: str | None):
+    """trafilatura config sending `user_agent`; None keeps trafilatura's default."""
+    config = deepcopy(DEFAULT_CONFIG)
+    if user_agent:
+        config.set("DEFAULT", "USER_AGENTS", user_agent)
+    return config
+
+
+_FETCH_CONFIGS = [_config_with_user_agent(ua) for ua in (_USER_AGENT, _BROWSER_USER_AGENT, None)]
+
+
+class FetchBlocked(Exception):
+    """Every user agent got a 403: the site refuses automated downloads (e.g. a Cloudflare challenge)."""
+
+
+def _fetch_html(url: str) -> str | None:
+    """Download a page, retrying with the next user agent when the site answers 403."""
+    response = None
+    for config in _FETCH_CONFIGS:
+        response = fetch_response(url, decode=True, config=config)
+        # Only a 403 means "wrong UA"; retrying timeouts or 404s just multiplies latency.
+        if response is None or response.status != 403:
+            break
+    if response is not None and response.status == 403:
+        raise FetchBlocked(url)
+    if response is None or response.status != 200 or not response.data:
+        return None
+    return response.html
+
+
+def _extract_labrador_article(html: str) -> str | None:
+    """Isolate main article from Labrador CMS pages to avoid sidebar noise."""
+    if "labClientAPI" not in html:
+        return None
+    doc = lxml.html.fromstring(html)
+    hits = doc.xpath('//*[@id="mainArticleSection"]')
+    if not hits:
+        return None
+    el = hits[0]
+    # Dagbladet: <article id="mainArticleSection">
+    # Khrono/Utdanningsnytt: <section id="mainArticleSection"><article>...
+    if el.tag != "article":
+        nested = el.xpath('.//article')
+        if not nested:
+            return None
+        el = nested[0]
+    article_html = html_tostring(el, encoding="unicode")
+    return f"<html><body>{article_html}</body></html>"
+
+
+def _metadata_value(metadata: object, key: str) -> str | None:
+    """Extract metadata field. Handles dict and object since trafilatura returns different types across versions."""
+    if metadata is None:
+        return None
+    if isinstance(metadata, dict):
+        value = metadata.get(key)
+    else:
+        value = getattr(metadata, key, None)
+    if value is None:
+        return None
+    value_str = str(value).strip()
+    return value_str or None
+
+
+def _try_pdf_url(url: str, source_id: str) -> ParsedSource | None:
+    """If URL serves a PDF, download and parse it. Returns None for non-PDF content."""
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": _USER_AGENT})
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            content_type = resp.headers.get("Content-Type", "")
+            if "application/pdf" not in content_type:
+                return None
+            pdf_bytes = resp.read()
+    except Exception:
+        return None
+
+    tmp = Path(tempfile.mktemp(suffix=".pdf"))
+    try:
+        tmp.write_bytes(pdf_bytes)
+        result = parse_pdf(str(tmp), source_id=source_id)
+        result.source = url
+        result.pdf_bytes = pdf_bytes
+        result.publication = urlparse(url).netloc or None
+        return result
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
+def parse_url(url: str, source_id: str | None = None, html: str | None = None) -> ParsedSource:
+    """Parse one URL into structured source data.
+
+    Pass `html` when the caller already holds the page — e.g. it fetched the
+    URL through an authenticated session to get past a paywall. The download
+    step is then skipped; everything downstream (metadata, extraction) is
+    identical, so callers keep one code path for free and paid sources.
+    """
+
+    source_id = source_id or "source-1"
+
+    if html is None:
+        pdf_result = _try_pdf_url(url, source_id)
+        if pdf_result:
+            return pdf_result
+
+    result = ParsedSource(source_id=source_id, source_type=SourceType.URL, source=url)
+    try:
+        try:
+            downloaded = html if html is not None else _fetch_html(url)
+        except FetchBlocked:
+            # Keeps the "Failed to fetch URL" prefix callers match on; "HTTP 403" says why.
+            result.error = f"Failed to fetch URL (blocked, HTTP 403): {url}"
+            return result
+        if not downloaded:
+            result.error = f"Failed to fetch URL: {url}"
+            return result
+
+        metadata = None
+        try:
+            metadata = trafilatura.extract_metadata(downloaded)
+        except Exception:
+            metadata = None
+
+        content_html = _extract_labrador_article(downloaded) or downloaded
+        markdown = (
+            trafilatura.extract(
+                content_html,
+                output_format="markdown",
+                include_formatting=True,
+                include_links=True,
+            )
+            or ""
+        )
+        markdown = markdown.strip()
+
+        result.headline = _metadata_value(metadata, "title")
+        result.byline = _metadata_value(metadata, "author")
+        result.publication_date = _metadata_value(metadata, "date")
+        result.publication = (
+            _metadata_value(metadata, "sitename")
+            or _metadata_value(metadata, "hostname")
+            or urlparse(url).netloc
+            or None
+        )
+
+        if not markdown:
+            result.error = f"No article content extracted from URL: {url}"
+            return result
+
+        result.markdown = markdown
+        return result
+    except Exception as exc:
+        result.error = f"URL parsing failed for {url}: {exc}"
+        return result
