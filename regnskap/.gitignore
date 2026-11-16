@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.venv/
+.env
+.DS_Store
+.ruff_cache/
+.pytest_cache/
+.playwright-cli/
+temp_debug_*
+# Where the app keeps its databases and PDFs when REGNSKAP_DATA_DIR points into the repo
+/data/

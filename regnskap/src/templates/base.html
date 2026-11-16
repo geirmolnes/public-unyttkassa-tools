@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="nb">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>{% block title %}Årsregnskap · unyttkassa{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&display=swap">
+
+    {# Apply saved theme before first paint so dark mode never flashes white. #}
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem("theme") || "system";
+          if (t === "light" || t === "dark") document.documentElement.setAttribute("data-theme", t);
+          else document.documentElement.removeAttribute("data-theme");
+        } catch (e) {}
+      })();
+    </script>
+
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 fill=%22%23000%22/%3E%3Cpath d=%22M9 23V13M16 23V8M23 23v-7%22 stroke=%22%23E30613%22 stroke-width=%223.5%22/%3E%3C/svg%3E">
+    <link rel="stylesheet" href="/static/style.css?v={{ asset_version }}">
+</head>
+<body>
+<div class="app" id="app">
+    {# ================= Sidebar ================= #}
+    <aside class="side" aria-label="Navigasjon">
+        <a href="/" class="brand" data-nav="company"><b>Årsregnskap</b><span class="muted">fra Brønnøysundregistrene</span></a>
+        <ul class="nav">
+            <li><button type="button" class="nav-btn" data-nav="company"><span class="label">Selskap<span class="sub" id="nav-company-sub"></span></span></button></li>
+            <li><button type="button" class="nav-btn" data-nav="favs"><span>Favoritter</span><span class="count" id="nav-fav-count"></span></button></li>
+            <li><button type="button" class="nav-btn" data-nav="collections"><span>Samlinger</span><span class="count" id="nav-coll-count"></span></button></li>
+            <li><button type="button" class="nav-btn" data-nav="batch"><span>Lim inn liste</span></button></li>
+        </ul>
+
+        <section class="side-sec" aria-labelledby="sc-h">
+            <h2 id="sc-h">Samlinger</h2>
+            <ul id="side-colls"></ul>
+            <button type="button" class="add-coll" id="side-new-coll">+ Ny samling</button>
+        </section>
+
+        <section class="side-sec" aria-labelledby="sr-h">
+            <h2 id="sr-h">Nylig sett</h2>
+            <ul id="side-recent"></ul>
+            <p class="side-empty" id="side-recent-empty" hidden>Ingen selskaper ennå.</p>
+        </section>
+
+        <div class="side-foot">
+            <div class="seg" role="group" aria-label="Tema">
+                <button type="button" data-theme-set="system" aria-pressed="true">Auto</button>
+                <button type="button" data-theme-set="light" aria-pressed="false">Lys</button>
+                <button type="button" data-theme-set="dark" aria-pressed="false">Mørk</button>
+            </div>
+            <form action="{{ logout_url }}" method="post">
+                <button type="submit" class="lk">Logg ut</button>
+            </form>
+        </div>
+    </aside>
+
+    {# ================= Centre ================= #}
+    <div class="centre">
+        <div class="wrap">
+            {% block main %}{% endblock %}
+        </div>
+    </div>
+
+    {# ================= Chat ================= #}
+    <aside class="chat" id="chat" aria-label="AI-chat">
+        <div class="chat-head">
+            <h2>Spør om regnskapet</h2>
+            <div class="btns">
+                <button type="button" class="lk" id="chat-new" style="font-size:12px">Ny samtale</button>
+                <button type="button" class="icon-btn" id="chat-close" aria-label="Lukk chat">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+                </button>
+            </div>
+        </div>
+        <p class="ctx" id="chat-ctx"></p>
+        <div class="msgs" id="msgs" aria-live="polite"></div>
+        <div class="sugg" id="sugg"></div>
+        <form class="composer" id="composer">
+            <div class="composer-row">
+                <label for="chat-in" class="vh">Spørsmål</label>
+                <textarea id="chat-in" rows="1" placeholder="Spør om tallene …"></textarea>
+                <button type="submit" class="send" id="send">Send</button>
+            </div>
+            <p class="fine">Svarene lages av AI ut fra tallene på siden. Sjekk viktige tall mot PDF-en.</p>
+        </form>
+    </aside>
+</div>
+
+{% block scripts %}{% endblock %}
+</body>
+</html>

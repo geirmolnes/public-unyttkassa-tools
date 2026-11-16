@@ -1,0 +1,50 @@
+[project]
+name = "unytt-regnskap"
+version = "0.1.0"
+description = "Hent årsregnskap (PDF) fra Brønnøysundregistrene"
+requires-python = ">=3.12"
+dependencies = [
+    "anthropic>=1.17.0",
+    "cryptography>=46",
+    "fastapi>=0.115.0",
+    "google-genai>=2.26.0",
+    "httpx>=0.28.1",
+    "jinja2>=3.1.6",
+    "openpyxl>=3.1.5",
+    "pillow>=12.3.0",
+    "pypdfium2>=5.14.0",
+    "uvicorn[standard]>=0.34.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "respx>=0.22.0",
+    "ruff>=0.16.10",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+markers = ["live: hits the real Brreg API (skip with -m 'not live')"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+# Vendored verbatim
+extend-exclude = ["src/usage_client.py", "src/session_token.py"]
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "C4", "UP"]
+ignore = ["E501"]
+extend-ignore = ["B008"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+# Supply-chain cooldown: resolve only releases at least 7 days old. Set in the repo, not only in
+# ~/.config/uv/uv.toml, so every machine and CI write and check the same uv.lock.
+[tool.uv]
+exclude-newer = "7 days"

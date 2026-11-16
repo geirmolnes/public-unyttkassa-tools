@@ -1,0 +1,90 @@
+{
+ "rollegrupper": [
+  {
+   "roller": [
+    {
+     "avregistrert": false,
+     "person": {
+      "erDoed": false,
+      "navn": {
+       "etternavn": "Nordmann",
+       "fornavn": "Kari"
+      }
+     },
+     "rekkefolge": 0,
+     "type": {
+      "beskrivelse": "Styrets leder",
+      "kode": "LEDE"
+     },
+     "valgtAv": {
+      "beskrivelse": "Representant for A-aksjonærene",
+      "kode": "A-AK"
+     }
+    }
+   ],
+   "sistEndret": "2022-08-26",
+   "type": {
+    "beskrivelse": "Styre",
+    "kode": "STYR"
+   }
+  },
+  {
+   "roller": [
+    {
+     "avregistrert": false,
+     "enhet": {
+      "erSlettet": false,
+      "godkjenningsstatus": "Godkjent revisjonsforetak",
+      "navn": [
+       "DELOITTE AS"
+      ],
+      "organisasjonsform": {
+       "beskrivelse": "Aksjeselskap",
+       "kode": "AS"
+      },
+      "organisasjonsnummer": "980211282"
+     },
+     "rekkefolge": 0,
+     "type": {
+      "beskrivelse": "Revisor",
+      "kode": "REVI"
+     }
+    }
+   ],
+   "sistEndret": "2023-12-22",
+   "type": {
+    "beskrivelse": "Revisor",
+    "kode": "REVI"
+   }
+  },
+  {
+   "roller": [
+    {
+     "avregistrert": false,
+     "enhet": {
+      "erSlettet": false,
+      "godkjenningsstatus": "Godkjent regnskapsforetak",
+      "navn": [
+       "ECIT NORIAN AS"
+      ],
+      "organisasjonsform": {
+       "beskrivelse": "Aksjeselskap",
+       "kode": "AS"
+      },
+      "organisasjonsnummer": "879906792"
+     },
+     "rekkefolge": 0,
+     "type": {
+      "beskrivelse": "Regnskapsfører",
+      "kode": "REGN"
+     }
+    }
+   ],
+   "sistEndret": "2020-09-04",
+   "type": {
+    "beskrivelse": "Regnskapsfører",
+    "kode": "REGN"
+   }
+  }
+ ]
+}

@@ -1,0 +1,305 @@
+{% extends "base.html" %}
+
+{% block main %}
+<header class="top">
+    <div class="search" id="search">
+        <label for="search-input" class="vh">Selskap, person eller organisasjonsnummer</label>
+        <div class="search-box">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m20 20-4.8-4.8"/></svg>
+            <input id="search-input" type="search" autocomplete="off" spellcheck="false" placeholder="Selskap, person eller org.nr."
+                   role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="search-results">
+            <span class="spinner" id="search-spinner" hidden aria-hidden="true"></span>
+            <span class="kbd" aria-hidden="true">/</span>
+        </div>
+        <div class="dropdown" id="search-dropdown" hidden>
+            <ul id="search-results" role="listbox" aria-label="Treff"></ul>
+            <p>↑↓ velg · Enter åpne · Esc lukk</p>
+        </div>
+    </div>
+    <button type="button" class="chat-toggle" id="chat-toggle" aria-controls="chat" aria-expanded="true">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/></svg>
+        Spør AI
+    </button>
+</header>
+
+<p class="status" id="status" role="status" aria-live="polite" hidden><span id="status-text"></span><button type="button" id="status-x" aria-label="Lukk melding">×</button></p>
+
+{# ---------- Job (ZIP) progress, shared by all views ---------- #}
+<section class="job" id="job" aria-live="polite" hidden>
+    <p class="job-title" id="job-title"></p>
+    <div class="progress" id="job-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100"><i id="job-bar-fill"></i></div>
+    <div class="job-row"><p id="job-text">Starter …</p><p class="muted num" id="job-count"></p></div>
+    <div class="sel-row" id="job-done" hidden><a class="secondary" id="job-download" href="#" style="display:inline-flex;align-items:center;text-decoration:none">Last ned igjen</a></div>
+    <div id="job-failures" hidden><h3>Kom ikke med</h3><ul id="job-failure-list"></ul></div>
+    <div id="job-companies" hidden><h3>Selskaper</h3><ul id="job-company-list"></ul></div>
+</section>
+
+{# ---------- Home (no company open) ---------- #}
+<div id="v-home" hidden>
+    <div class="head"><h1>Hent årsregnskap</h1></div>
+    <p class="facts">Søk opp et selskap, velg år og last ned årsregnskapet som PDF, rett fra Brønnøysundregistrene. Tastatur: <b>/</b> søk, <b>F</b> favoritt, <b>K</b> chat.</p>
+    <section class="block" id="home-favs-block" hidden>
+        <h2>Favoritter</h2>
+        <ul class="home-list" id="home-favs"></ul>
+    </section>
+    <section class="block" id="home-recent-block" hidden>
+        <h2>Nylig sett</h2>
+        <ul class="home-list" id="home-recent"></ul>
+    </section>
+</div>
+
+{# ---------- Company ---------- #}
+<div id="v-company" hidden>
+    <div class="loading" id="company-loading" hidden><span class="spinner"></span> Henter selskapet …</div>
+    <div id="company" hidden>
+        <div class="head">
+            <div class="head-left"><h1 id="c-name"></h1><span class="badges" id="c-badges"></span></div>
+            <div class="head-btns">
+                <button type="button" class="tool-btn" id="fav-btn" aria-pressed="false"><span class="sq" aria-hidden="true"></span><span id="fav-label">Legg til favoritt</span></button>
+                <button type="button" class="tool-btn" id="coll-btn" aria-expanded="false" aria-controls="coll-pop"><span id="coll-btn-label">Legg i samling</span>
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
+                <div class="pop" id="coll-pop" hidden>
+                    <div id="coll-pop-list"></div>
+                    <form id="coll-pop-form"><label for="coll-pop-new" class="vh">Ny samling</label><input type="text" id="coll-pop-new" placeholder="Ny samling …" maxlength="60"><button type="submit">Legg til</button></form>
+                </div>
+                <span class="dl-wrap">
+                    <button type="button" class="tool-btn" id="dl-btn" aria-expanded="false" aria-controls="dl-pop"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M12 4v12"/><path d="m6 10 6 6 6-6"/><path d="M4 20h16"/></svg>Last ned
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
+                    <div class="pop dl-pop" id="dl-pop" hidden></div>
+                </span>
+            </div>
+        </div>
+        <p class="facts" id="c-facts"></p>
+
+        <div id="docs">
+            <form class="doc-search" id="doc-search" autocomplete="off" hidden>
+                <label class="vh" for="doc-q">Søk i årsregnskapene</label>
+                <input type="search" id="doc-q" aria-controls="doc-sugg" placeholder="Søk i årsregnskapene: tekst og tall">
+                <button type="submit" class="primary">Søk</button>
+                <div class="doc-sugg" id="doc-sugg" hidden></div>
+            </form>
+            <div class="doc-row">
+                <div class="doc-years" id="doc-years" role="group" aria-label="Årsregnskapene" aria-live="polite"></div>
+                <span class="doc-more" id="doc-more" hidden>
+                    <button type="button" class="doc-yr more" id="doc-more-btn" aria-expanded="false" aria-controls="doc-more-pop"><span id="doc-more-label">Les inn flere år</span>
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
+                    <div class="pop doc-more-pop" id="doc-more-pop" hidden>
+                        <h3>Les inn fra PDF-en</h3>
+                        <p>Tall, noter og tekst. Klikk et år for å starte; tar noen minutter per år.</p>
+                        <div class="years" id="doc-more-years" role="group" aria-label="År som ikke er lest inn"></div>
+                    </div>
+                </span>
+            </div>
+            <p class="doc-note" id="doc-note" hidden></p>
+        </div>
+        <p class="note" id="no-years" hidden></p>
+
+        <section class="block" id="fig-block" aria-labelledby="fig-title">
+            <div class="fig-head"><h2 id="fig-title"></h2>
+                <span class="fig-acts" id="fig-acts" hidden>
+                    <button type="button" class="lk" data-fig-copy title="Alle årene, hele kroner, klart til å lime inn i Google Sheets eller Excel"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><rect x="8" y="8" width="12" height="12"/><path d="M4 16V4h12"/></svg>Kopier</button>
+                    <button type="button" class="lk" data-fig-xlsx title="Alle årene, hele kroner, med ark for resultat og balanse"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M12 4v12"/><path d="m6 10 6 6 6-6"/><path d="M4 20h16"/></svg>Excel</button>
+                </span>
+            </div>
+            <div class="fig-ctl" id="fig-ctl"></div>
+            <div class="muted fig-meta" id="fig-meta"></div>
+            <div id="figures"></div>
+        </section>
+
+        <section class="block" aria-labelledby="own-title" id="own-block">
+            <div class="fig-head"><h2 id="own-title">Selskapsstruktur</h2><span class="src" id="reg-src"></span></div>
+            <div id="reg"></div>
+            <div id="owned-by"></div>
+            <div class="fig-head sub-head"><h3 class="sub-h">Datterselskaper ifølge årsrapporten</h3><span class="src" id="subs-src"></span></div>
+            <div id="subs"></div>
+        </section>
+
+        <section class="block" aria-labelledby="kn-title" id="kn-block">
+            <div class="fig-head"><h2 id="kn-title">Kunngjøringer <span class="muted num" id="kn-n"></span></h2><span class="src" id="kn-src">Brønnøysundregistrene</span></div>
+            <div id="kn-alert"></div>
+            <div class="kn-tools"><div class="search-box"><label for="kn-q" class="vh">Søk i kunngjøringene</label>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m20 20-4.8-4.8"/></svg>
+                <input id="kn-q" type="search" autocomplete="off" spellcheck="false" placeholder="Søk i kunngjøringene"></div>
+                <div class="kn-load" id="kn-load" aria-live="polite"></div></div>
+            <div id="kn"></div>
+        </section>
+
+        <section class="block" aria-labelledby="roles-title" id="roles-block">
+            <div class="fig-head"><h2 id="roles-title">Roller</h2><span class="src">Enhetsregisteret</span></div>
+            <dl class="roles" id="roles"></dl>
+        </section>
+    </div>
+</div>
+
+{# ---------- Person (shareholder register) ---------- #}
+<div id="v-person" hidden>
+    <div class="head"><h1 id="p-name"></h1></div>
+    <p class="facts" id="p-facts"></p>
+    <section class="block" aria-labelledby="p-title" id="p-block">
+        <div class="fig-head"><h2 id="p-title">Eierstruktur</h2><span class="src" id="p-src"></span></div>
+        <div id="p-body"><p class="working"><span class="spinner"></span> Henter aksjer …</p></div>
+    </section>
+</div>
+
+{# ---------- People matching a search (shareholder register) ---------- #}
+<div id="v-people" hidden>
+    <div class="head"><h1 id="pl-title">Personer</h1></div>
+    <p class="facts" id="pl-facts"></p>
+    <div class="subs-tools">
+        <div class="search-box"><label for="pl-filter" class="vh">Filtrer personene</label>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m20 20-4.8-4.8"/></svg>
+            <input id="pl-filter" type="search" autocomplete="off" spellcheck="false" placeholder="Filtrer på fødselsår eller sted"></div>
+        <span class="muted num" id="pl-count"></span>
+    </div>
+    <div id="pl-body"></div>
+</div>
+
+{# ---------- Selskapsstruktur / eierstruktur (saved structure from the shareholder register) ---------- #}
+<div id="v-structure" hidden>
+    <header class="map-bar">
+        <div class="map-crumb">
+            <button type="button" class="lk" id="s-back" title="Tilbake til selskapet (Esc)">← Tilbake til selskapet</button>
+            <span class="sep" aria-hidden="true">/</span>
+            <h1 id="s-title">Selskapsstruktur</h1>
+        </div>
+        <span class="reg-years" id="s-years" aria-label="Registerår"></span>
+        <div class="search-box"><label for="s-q" class="vh">Finn i kartet</label>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m20 20-4.8-4.8"/></svg>
+            <input id="s-q" type="search" autocomplete="off" spellcheck="false" placeholder="Finn selskap eller person">
+            <span class="kbd" aria-hidden="true">/</span></div>
+        <span class="muted num" id="s-hits" aria-live="polite"></span>
+        <span class="s-mode"><span class="muted" id="s-mode-label">Under 20 %</span>
+            <span class="reg-years" id="s-mode" role="group" aria-labelledby="s-mode-label"><button type="button" data-smode="hide" aria-pressed="false">Skjul</button><button type="button" data-smode="show" aria-pressed="true">Vis</button><button type="button" data-smode="follow" aria-pressed="false">Følg</button></span></span>
+        <button type="button" class="tool-btn" id="s-help" aria-expanded="false" aria-controls="s-help-pop">Slik leses kartet</button>
+        <div class="map-pop" id="s-help-pop" hidden>
+            <h2>Slik leses kartet</h2>
+            <div class="map-legend">
+                <i class="sw root"></i><span>Dette selskapet</span>
+                <i class="sw"></i><span>Selskap</span>
+                <i class="sw person"></i><span>Person</span>
+                <i class="sw edge"></i><span>Eierskap, med eierandelen på linjen</span>
+                <i class="sw dashed"></i><span id="s-legend-small">Liten eierandel, eller eierskap som går i ring</span>
+                <i class="sw block"></i><span>Blokk: mange selskaper med samme eier, alfabetisk. Felles del av navnet står én gang øverst. Selskaper med egne datterselskaper står over blokken.</span>
+            </div>
+            <p id="s-note"></p>
+            <p>Dra i kartet for å flytte det. Ctrl/⌘ + rull, eller − og +, zoomer. <b>/</b> søker, Enter går til neste treff, Esc tømmer søket og går så tilbake til selskapet.</p>
+            <p id="s-saved"></p>
+        </div>
+    </header>
+    <div id="s-msg"></div>
+    <main class="map" id="s-map" aria-label="Kart over eierskap" hidden>
+        <div class="map-world" id="s-world"><svg class="map-lines" id="s-lines" aria-hidden="true"></svg><div id="s-nodes"></div></div>
+        <div class="map-side l" id="s-left"></div>
+        <div class="map-side r" id="s-right"></div>
+        <div class="map-side cap" id="s-cap" hidden>Kartet er stort: noen grener er ikke åpnet. Åpne dem med ▸.</div>
+        <div class="map-ctrl">
+            <span class="seg-btns"><button type="button" id="s-zout" aria-label="Zoom ut">−</button><span class="zv num" id="s-zv">100 %</span><button type="button" id="s-zin" aria-label="Zoom inn">+</button><button type="button" id="s-fit">Tilpass</button></span>
+            <span class="seg-btns"><button type="button" id="s-deeper">Åpne ett ledd til</button><button type="button" id="s-reset">Tilbakestill</button></span>
+        </div>
+        <canvas class="map-mini" id="s-mini" aria-label="Oversikt over kartet"></canvas>
+    </main>
+</div>
+
+{# ---------- Regnskapsleser: one read årsregnskap ---------- #}
+<div id="v-accounts" hidden>
+    <header class="map-bar">
+        <div class="map-crumb">
+            <button type="button" class="lk" id="a-back">← Tilbake til selskapet</button>
+            <span class="sep" aria-hidden="true">/</span>
+            <h1 id="a-title">Årsregnskap</h1>
+        </div>
+        <span class="reg-years" id="a-years" aria-label="Leste år"></span>
+        <div class="search-box a-search"><label for="a-q" class="vh">Søk i årsregnskapene</label>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m20 20-4.8-4.8"/></svg>
+            <input id="a-q" type="search" autocomplete="off" spellcheck="false" placeholder="Søk i tekst og tall, alle år">
+            <span class="kbd" aria-hidden="true">/</span></div>
+        <button type="button" class="lk a-more" id="a-more">Les inn flere år</button>
+        <span class="muted a-meta" id="a-meta"></span>
+    </header>
+    <div id="a-msg"></div>
+    <div class="acc-grid" id="a-grid" hidden>
+        <nav class="acc-toc" id="a-toc" aria-label="Innhold"></nav>
+        <main class="acc-main" id="a-main"></main>
+        <aside class="acc-side" aria-label="Skannet side">
+            <div class="scan-head">
+                <button type="button" class="scan-btn" id="a-prev" aria-label="Forrige side">‹</button><button type="button" class="scan-btn" id="a-next" aria-label="Neste side">›</button>
+                <label class="pnum">s. <input id="a-pn" class="num" inputmode="numeric" autocomplete="off" aria-label="Sidetall"> av <span id="a-pt"></span></label>
+                <button type="button" class="page-menu" id="a-menu" aria-haspopup="dialog" aria-expanded="false" title="Alle sider"><span class="ttl" id="a-pk"></span><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M2 3.5 5 6.5 8 3.5" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></button>
+                <span class="chk-step" id="a-chk"><span id="a-chk-n"></span><button type="button" class="scan-btn sm" id="a-chk-prev" aria-label="Forrige side med noe å sjekke">‹</button><button type="button" class="scan-btn sm" id="a-chk-next" aria-label="Neste side med noe å sjekke">›</button></span>
+                <a class="pg" id="a-pdf" target="_blank" rel="noopener">Åpne PDF</a>
+                <div class="page-pop" id="a-pop" role="dialog" aria-label="Alle sider" hidden>
+                    <input id="a-pfilter" type="search" autocomplete="off" spellcheck="false" placeholder="Filtrer: «skatt», «konsern», sidetall …" aria-label="Filtrer sidene">
+                    <ul class="plist" id="a-plist" role="listbox"></ul>
+                </div>
+            </div>
+            <img id="a-img" alt="Skannet side fra årsregnskapet">
+        </aside>
+    </div>
+</div>
+
+{# ---------- Favourites ---------- #}
+<div id="v-favs" hidden>
+    <div class="head"><h1>Favoritter</h1></div>
+    <p class="facts">Selskaper du følger. Last ned for alle eller et utvalg i én ZIP.</p>
+    <div id="favs-body"></div>
+</div>
+
+{# ---------- Collections overview ---------- #}
+<div id="v-collections" hidden>
+    <div class="head"><h1>Samlinger</h1><button type="button" class="secondary" id="new-coll">Ny samling</button></div>
+    <p class="facts">Egne lister, for eksempel en portefølje eller en kundeliste. Hele samlingen kan lastes ned som én ZIP.</p>
+    <div class="coll-cards" id="coll-cards"></div>
+</div>
+
+{# ---------- One collection ---------- #}
+<div id="v-collection" hidden>
+    <div class="head" style="align-items:flex-end">
+        <div style="flex:1;min-width:0"><label for="coll-name" class="vh">Navn på samlingen</label><input class="title-input" id="coll-name" maxlength="60"></div>
+        <span class="head-btns" id="coll-del-wrap"></span>
+    </div>
+    <p class="facts" id="coll-facts"></p>
+    <div class="add-row" id="coll-add">
+        <label for="coll-q" class="vh">Legg til selskap i samlingen</label>
+        <div class="search-box">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+            <input id="coll-q" type="search" autocomplete="off" spellcheck="false" placeholder="Legg til selskap …" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="coll-results">
+            <span class="spinner" id="coll-spinner" hidden aria-hidden="true"></span>
+        </div>
+        <div class="dropdown" id="coll-dropdown" hidden><ul id="coll-results" role="listbox" aria-label="Treff"></ul></div>
+    </div>
+    <div id="coll-body"></div>
+</div>
+
+{# ---------- Batch ---------- #}
+<div id="v-batch" hidden>
+    <div class="head"><h1>Lim inn liste</h1></div>
+    <p class="facts">Organisasjonsnummer, ett per linje eller skilt med komma. Maks 50. Alt samles i én ZIP.</p>
+    <form class="batch" id="batch-form" novalidate>
+        <div>
+            <label for="batch-input" class="vh">Organisasjonsnummer</label>
+            <textarea id="batch-input" spellcheck="false" placeholder="998812623&#10;923 609 016"></textarea>
+            <div class="sel-row">
+                <button type="button" class="lk" id="use-favs">Fyll inn favorittene</button>
+                <button type="button" class="lk" id="save-coll">Lagre som samling</button>
+                <button type="button" class="lk" id="clear-batch">Tøm</button>
+            </div>
+            <div class="parsed" id="parsed"></div>
+        </div>
+        <div>
+            <fieldset>
+                <legend>År</legend>
+                <label><input type="radio" name="year-mode" value="latest" checked> Siste tilgjengelige år</label>
+                <label><input type="radio" name="year-mode" value="last"> Siste <input type="number" id="batch-last-n" min="1" max="100" value="3" aria-label="Antall år"> år</label>
+                <label><input type="radio" name="year-mode" value="all"> Alle år</label>
+                <label><input type="radio" name="year-mode" value="range"> Fra <input type="number" id="batch-from" min="1990" max="2100" aria-label="Fra år"> til <input type="number" id="batch-to" min="1990" max="2100" aria-label="Til år"></label>
+            </fieldset>
+            <div class="sel-row" style="margin-top:18px"><button type="submit" class="primary" id="batch-btn">Hent ZIP</button></div>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script type="importmap">{"imports": {"/static/format.js": "/static/format.js?v={{ asset_version }}", "/static/eierkart.js": "/static/eierkart.js?v={{ asset_version }}", "/static/search.js": "/static/search.js?v={{ asset_version }}", "/static/figures.js": "/static/figures.js?v={{ asset_version }}", "/static/reader.js": "/static/reader.js?v={{ asset_version }}", "/static/kunngjoringer.js": "/static/kunngjoringer.js?v={{ asset_version }}"}}</script>
+<script type="module" src="/static/app.js?v={{ asset_version }}"></script>
+{% endblock %}

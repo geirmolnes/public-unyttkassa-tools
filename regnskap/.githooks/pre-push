@@ -1,0 +1,27 @@
+#!/bin/sh
+# Runs the offline checks before every push, to GitHub and to Dokku (the deploy) alike; a failure
+# stops the push. Turn on once per clone: git config core.hooksPath .githooks
+# Skip in an emergency: git push --no-verify
+set -e
+cd "$(git rev-parse --show-toplevel)"
+
+# A ship pushes twice (origin, then dokku): a clean tree that already passed isn't tested again.
+stamp="$(git rev-parse --git-dir)/pre-push-passed"
+tree="$(git rev-parse 'HEAD^{tree}')"
+clean() { [ -z "$(git status --porcelain)" ]; }
+if clean && [ "$(cat "$stamp" 2>/dev/null)" = "$tree" ]; then
+  echo "pre-push: checks already passed for this commit"
+  exit 0
+fi
+
+echo "pre-push: ruff, pytest (without the live Brreg test), bun test, app.js syntax"
+uv run ruff check src tests
+uv run ruff format --check src tests
+uv run pytest -q -m "not live"
+bun test
+tmp="$(mktemp -d)"
+trap 'rm -rf "$tmp"' EXIT
+bun build --no-bundle src/static/app.js --outfile "$tmp/app.js" >/dev/null
+
+if clean; then echo "$tree" > "$stamp"; fi
+echo "pre-push: all checks passed"

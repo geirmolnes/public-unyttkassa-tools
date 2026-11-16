@@ -1,0 +1,79 @@
+[
+    {
+        "id": 7230858,
+        "journalnr": "2026760545",
+        "regnskapstype": "SELSKAP",
+        "virksomhet": {
+            "organisasjonsnummer": "998812623",
+            "organisasjonsform": "AS",
+            "morselskap": true
+        },
+        "regnskapsperiode": {
+            "fraDato": "2025-01-01",
+            "tilDato": "2025-12-31"
+        },
+        "valuta": "NOK",
+        "avviklingsregnskap": false,
+        "oppstillingsplan": "store",
+        "revisjon": {
+            "ikkeRevidertAarsregnskap": false,
+            "fravalgRevisjon": false
+        },
+        "regnkapsprinsipper": {
+            "smaaForetak": false,
+            "regnskapsregler": "regnskapslovenAlminneligRegler"
+        },
+        "egenkapitalGjeld": {
+            "sumEgenkapitalGjeld": 114090000.0,
+            "egenkapital": {
+                "sumEgenkapital": 29969000.0,
+                "opptjentEgenkapital": {
+                    "sumOpptjentEgenkapital": 28699000.0
+                },
+                "innskuttEgenkapital": {
+                    "sumInnskuttEgenkaptial": 1270000.0
+                }
+            },
+            "gjeldOversikt": {
+                "sumGjeld": 84121000.0,
+                "kortsiktigGjeld": {
+                    "sumKortsiktigGjeld": 9472000.0
+                },
+                "langsiktigGjeld": {
+                    "sumLangsiktigGjeld": 74649000.0
+                }
+            }
+        },
+        "eiendeler": {
+            "sumEiendeler": 114090000.0,
+            "omloepsmidler": {
+                "sumOmloepsmidler": 35309000.0
+            },
+            "anleggsmidler": {
+                "sumAnleggsmidler": 78781000.0
+            }
+        },
+        "resultatregnskapResultat": {
+            "ordinaertResultatFoerSkattekostnad": 32711000.0,
+            "aarsresultat": 25264000.0,
+            "finansresultat": {
+                "nettoFinans": 33765000.0,
+                "finansinntekt": {
+                    "sumFinansinntekter": 33891000.0
+                },
+                "finanskostnad": {
+                    "sumFinanskostnad": 126000.0
+                }
+            },
+            "driftsresultat": {
+                "driftsresultat": -1054000.0,
+                "driftsinntekter": {
+                    "sumDriftsinntekter": 257000.0
+                },
+                "driftskostnad": {
+                    "sumDriftskostnad": 1311000.0
+                }
+            }
+        }
+    }
+]

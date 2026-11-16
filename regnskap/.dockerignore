@@ -1,0 +1,10 @@
+__pycache__
+*.pyc
+.git
+.venv
+tests
+docs
+*.sqlite
+temp_debug_*
+.playwright-cli
+data
